@@ -105,8 +105,10 @@ class TwoLayerMoM:
     def pdf(self, loc_data: np.ndarray, dir_data: np.ndarray) -> np.ndarray:
         return np.exp(self.log_pdf(loc_data, dir_data))
 
-    def bic_penalty_term(self, n_obs):
-        """ returns number of free parameters times log(n_obs) """
+    def n_free_params(self):
+        """
+        Returns number of free parameters
+        """
         loc_n_params = self.loc_n_clusters - 1  # prior parameters
         loc_n_params += _num_free_params_for_component(self.loc_mixture.components[0]) * self.loc_n_clusters
 
@@ -116,36 +118,36 @@ class TwoLayerMoM:
             dir_n_params += dir_mixture.n_components - 1  # prior parameters
             dir_n_params += _num_free_params_for_component(dir_mixture.components[0]) * dir_mixture.n_components
 
-        p = dir_n_params + loc_n_params
-        return np.log(n_obs) * p
+        return dir_n_params + loc_n_params
 
     def bic_score(self, loc_data, dir_data) -> float:
         """Bayesian Information Criterion (lower is better)."""
         loc_data = np.asarray(loc_data, dtype=float)
         dir_data = np.asarray(dir_data, dtype=float)
 
-        penalty = self.bic_penalty_term(loc_data.shape[0])
+        n_obs = loc_data.shape[0]
+        penalty = np.log(n_obs) * self.n_free_params
         ll = self.log_pdf(loc_data, dir_data).sum()
         return penalty - 2 * ll
 
     def completed_bic_score(self, loc_data, dir_data):
         loc_data = np.asarray(loc_data, dtype=float)
         dir_data = np.asarray(dir_data, dtype=float)
-        N = loc_data.shape[0]
+        n_obs = loc_data.shape[0]
 
-        penalty = self.bic_penalty_term(N)
+        penalty = np.log(n_obs) * self.n_free_params
 
         # Location mixture posteriors and assignments
         loc_posteriors = self.loc_mixture.get_posteriors(loc_data) + _EPS
-        idx_loc = np.argmax(loc_posteriors, axis=1)  # (N,)
+        idx_loc = np.argmax(loc_posteriors, axis=1)  # (n_obs,)
 
         # Precompute log weights for loc mixture
         log_weights_loc = np.log(self.loc_mixture.weights)
-        log_prior_loc = log_weights_loc[idx_loc]  # (N,)
+        log_prior_loc = log_weights_loc[idx_loc]  # (n_obs,)
 
-        log_expfam_loc = np.empty(N)
-        log_prior_dir = np.empty(N)
-        log_expfam_dir = np.empty(N)
+        log_expfam_loc = np.empty(n_obs)
+        log_prior_dir = np.empty(n_obs)
+        log_expfam_dir = np.empty(n_obs)
 
         for j, loc_comp in enumerate(self.loc_mixture.components):
             mask = (idx_loc == j)
