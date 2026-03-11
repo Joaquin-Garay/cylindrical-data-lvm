@@ -8,12 +8,18 @@ __all__ = [
     "distributions",
     "hierarchical",
     "hmm",
-    "inference",
     "metrics",
     "mixtures",
     "utils",
     "MixtureModel",
     "TwoLayerMoM",
+    "BaseEmission",
+    "GaussianEmission",
+    "GaussianMixtureEmission",
+    "TwoLayerEmission",
+    "EmissionHMM",
+    "GaussianHMM",
+    "TwoLayerHMM",
     "Distribution",
     "Categorical",
     "ExponentialFamily",
@@ -30,7 +36,6 @@ def __getattr__(name: str) -> Any:
         "distributions",
         "hierarchical",
         "hmm",
-        "inference",
         "metrics",
         "mixtures",
         "utils",
@@ -50,6 +55,37 @@ def __getattr__(name: str) -> Any:
 
         globals()[name] = TwoLayerMoM
         return TwoLayerMoM
+
+    if name in {
+        "BaseEmission",
+        "GaussianEmission",
+        "GaussianMixtureEmission",
+        "TwoLayerEmission",
+        "EmissionHMM",
+        "GaussianHMM",
+        "TwoLayerHMM",
+    }:
+        from .hmm import (
+            BaseEmission,
+            EmissionHMM,
+            GaussianEmission,
+            GaussianHMM,
+            GaussianMixtureEmission,
+            TwoLayerEmission,
+            TwoLayerHMM,
+        )
+
+        _symbols = {
+            "BaseEmission": BaseEmission,
+            "GaussianEmission": GaussianEmission,
+            "GaussianMixtureEmission": GaussianMixtureEmission,
+            "TwoLayerEmission": TwoLayerEmission,
+            "EmissionHMM": EmissionHMM,
+            "GaussianHMM": GaussianHMM,
+            "TwoLayerHMM": TwoLayerHMM,
+        }
+        globals().update(_symbols)
+        return _symbols[name]
 
     if name in {
         "Distribution",

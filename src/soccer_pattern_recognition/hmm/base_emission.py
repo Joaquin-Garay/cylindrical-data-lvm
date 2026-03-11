@@ -50,7 +50,7 @@ class BaseEmission(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def initialize(self, x: Array, init_params: str, random_state: Any) -> None:
+    def initialize(self, X: Array, init_params: str, random_state: Any) -> None:
         """Initialize emission parameters before EM iterations."""
         raise NotImplementedError
 
@@ -60,7 +60,7 @@ class BaseEmission(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def compute_log_likelihood(self, x: Array) -> Array:
+    def compute_log_likelihood(self, X: Array) -> Array:
         """Return log p(x_t | z_t=k) matrix with shape (n_samples, n_components)."""
         raise NotImplementedError
 
@@ -73,7 +73,7 @@ class BaseEmission(ABC):
     def accumulate_sufficient_statistics(
         self,
         stats: dict[str, Any],
-        x: Array,
+        X: Array,
         posteriors: Array,
         params: str,
     ) -> None:
