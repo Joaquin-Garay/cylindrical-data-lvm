@@ -29,7 +29,7 @@ class Distribution(ABC):
         return np.exp(self.log_pdf(x))
 
     @abstractmethod
-    def sample(self, n: int, rng: Optional[np.random.Generator] = None) -> Array:
+    def sample(self, n: int, rng: Optional[np.random.RandomState] = None) -> Array:
         """
         Draw ``n`` i.i.d. samples.
 

@@ -83,9 +83,9 @@ class Categorical(Distribution):
 
         raise ValueError("x must be a 1D label array or 2D one-hot array.")
 
-    def sample(self, n: int, rng: Optional[np.random.Generator] = None) -> Array:
+    def sample(self, n: int, rng: Optional[np.random.RandomState] = None) -> Array:
         self._validate_n_samples(n)
-        rng = np.random.default_rng() if rng is None else rng
+        rng = np.random.RandomState() if rng is None else rng
         return rng.choice(self.n_categories, size=n, p=self._probs)
 
     def __repr__(self) -> str:

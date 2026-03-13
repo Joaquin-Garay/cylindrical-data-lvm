@@ -188,12 +188,12 @@ class VonMises(ExponentialFamily):
 
     # pdf inherited from base
 
-    def sample(self, n: int, rng: Optional[np.random.Generator] = None) -> Array:
+    def sample(self, n: int, rng: Optional[np.random.RandomState] = None) -> Array:
         """
         Draw samples and return sufficient statistics [cos(theta), sin(theta)].
         """
         self._validate_n_samples(n)
-        rng = np.random.default_rng() if rng is None else rng
+        rng = np.random.RandomState() if rng is None else rng
         theta = rng.vonmises(mu=self._loc, kappa=self._kappa, size=n)
         return np.column_stack((np.cos(theta), np.sin(theta)))
 

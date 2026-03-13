@@ -99,9 +99,9 @@ class UnivariateGaussian(ExponentialFamily):
             x = x[:, 0]
         return -0.5 * ((x - self._mean) ** 2) / self._variance - 0.5 * np.log(2 * np.pi * self._variance)
 
-    def sample(self, n: int, rng: Optional[np.random.Generator] = None) -> Array:
+    def sample(self, n: int, rng: Optional[np.random.RandomState] = None) -> Array:
         self._validate_n_samples(n)
-        rng = np.random.default_rng() if rng is None else rng
+        rng = np.random.RandomState() if rng is None else rng
         return rng.normal(loc=self._mean, scale=np.sqrt(self._variance), size=n)
 
     # pdf inherited from base
@@ -271,9 +271,9 @@ class MultivariateGaussian(ExponentialFamily):
 
     # pdf inherited from base
 
-    def sample(self, n: int, rng: Optional[np.random.Generator] = None) -> Array:
+    def sample(self, n: int, rng: Optional[np.random.RandomState] = None) -> Array:
         self._validate_n_samples(n)
-        rng = np.random.default_rng() if rng is None else rng
+        rng = np.random.RandomState() if rng is None else rng
         return rng.multivariate_normal(self._mean, self._covariance, size=n)
 
     # ----- Calibration -----

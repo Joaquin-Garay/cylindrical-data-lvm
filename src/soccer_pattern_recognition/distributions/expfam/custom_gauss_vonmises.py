@@ -84,7 +84,7 @@ class IndGaussVM(ExponentialFamily):
         log_pdf_vm_beta = beta * self._vonmises.log_pdf(x_vm) + log_vm_normalizer
         return log_pdf_gauss_alpha + log_pdf_vm_beta
 
-    def sample(self, n: int, rng: Optional[np.random.Generator] = None) -> Array:
+    def sample(self, n: int, rng: Optional[np.random.RandomState] = None) -> Array:
         self._validate_n_samples(n)
         raise NotImplementedError
 
