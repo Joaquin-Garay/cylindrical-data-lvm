@@ -10,6 +10,7 @@ import numpy as np
 from scipy.special import logsumexp
 
 from ..core import _EPS
+from ..distributions import MultivariateGaussian, VonMises
 from ..mixtures import MixtureModel
 from ..metrics.model_selection import _num_free_params_for_component
 from ..utils import (
@@ -24,201 +25,300 @@ import matplotsoccer as mps
 colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
 class TwoLayerMoM:
-    def __init__(self,
-                 loc_mixture: MixtureModel,
-                 dir_mixtures: Sequence[MixtureModel]):
-        self.loc_mixture = loc_mixture
-        self.loc_n_clusters = loc_mixture.n_components
-        if len(dir_mixtures) != self.loc_n_clusters:
-            raise ValueError("Components in loc mixture and number of dir mixture don't match")
+    """
+    Two-layer mixture-of-mixtures model.
 
-        self.dir_mixtures = dir_mixtures
+    The first layer is an Exponential Family Mixture Model.
+    Each first layer component has an associated second layer mixture in
+    `layer2_mixtures`, fitted with soft assignments from the first layer.
+    """
+
+    def __init__(self,
+                 layer1_mixture: MixtureModel,
+                 layer2_mixtures: Sequence[MixtureModel]):
+        """
+        Initialize a two-layer model.
+
+        Parameters
+        ----------
+        layer1_mixture : MixtureModel
+            Mixture over first-layer features.
+        layer2_mixtures : Sequence[MixtureModel]
+            One second-layer mixture per first-layer component.
+
+        Raises
+        ------
+        ValueError
+            If the number of second-layer mixtures does not match
+            `layer1_mixture.n_components`.
+        """
+        self.layer1_mixture = layer1_mixture
+        self.n_layer1_components = layer1_mixture.n_components
+        if len(layer2_mixtures) != self.n_layer1_components:
+            raise ValueError(
+                "Number of layer-2 mixtures must match number of layer-1 components."
+            )
+
+        self.layer2_mixtures = layer2_mixtures
 
     def fit(self,
-            loc_data: np.ndarray,
-            dir_data: np.ndarray,
+            layer1_data: np.ndarray,
+            layer2_data: np.ndarray,
             tol: float = 1e-4,
             max_iter: int = 1000,
             verbose: bool = False,
             m_step_case: str = "classic",
             c_step_bool: bool = False,
             ) -> int:
+        """
+        Fit the two-layer model.
 
-        if c_step_bool and not all(m.init == "k-means" for m in self.dir_mixtures):
+        The first-layer mixture is fitted first. Then each second-layer mixture
+        is fitted on all second-layer observations, weighted by the posterior
+        responsibilities of its corresponding first-layer component.
+
+        Parameters
+        ----------
+        layer1_data : np.ndarray, shape (n_obs, d_layer1)
+            First-layer observations.
+        layer2_data : np.ndarray, shape (n_obs, d_layer2)
+            Second-layer observations aligned with `layer1_data`.
+        tol : float, default=1e-4
+            EM convergence tolerance.
+        max_iter : int, default=1000
+            Maximum EM iterations per mixture.
+        verbose : bool, default=False
+            If True, print optimization progress.
+        m_step_case : str, default="classic"
+            M-step variant forwarded to underlying mixtures.
+        c_step_bool : bool, default=False
+            If True, use classification EM where supported.
+
+        Returns
+        -------
+        int
+            Total number of EM iterations (layer 1 + all layer-2 mixtures).
+
+        Raises
+        ------
+        ValueError
+            If first-layer and second-layer sample counts mismatch, or if
+            classification EM is requested with incompatible initialization.
+        """
+
+        if c_step_bool and not all(m.init == "k-means" for m in self.layer2_mixtures):
             raise ValueError(
-                "To use Classification EM, you need to specify k-means as your initialization for the direction mixtures."
+                "Classification EM requires 'k-means' initialization for all layer-2 mixtures."
             )
 
-        loc_data = np.asarray(loc_data, dtype=float)
-        dir_data = np.asarray(dir_data, dtype=float)
-        n_obs = loc_data.shape[0]
-        if n_obs != dir_data.shape[0]:
-            raise ValueError("Location and direction number of observation don't match")
+        layer1_data = np.asarray(layer1_data, dtype=float)
+        layer2_data = np.asarray(layer2_data, dtype=float)
+        n_obs = layer1_data.shape[0]
+        if n_obs != layer2_data.shape[0]:
+            raise ValueError("layer1_data and layer2_data must have the same number of samples.")
 
-        _, it_loc = self.loc_mixture.fit(loc_data,
-                                 sample_weight=None,
-                                 tol=tol,
-                                 max_iter=max_iter,
-                                 verbose=verbose,
-                                 m_step_case=m_step_case,
-                                 c_step_bool=c_step_bool)
+        _, layer1_counter = self.layer1_mixture.fit(layer1_data,
+                                            sample_weight=None,
+                                            tol=tol,
+                                            max_iter=max_iter,
+                                            verbose=verbose,
+                                            m_step_case=m_step_case,
+                                            c_step_bool=c_step_bool)
 
         # include a jitter in the posteriors probabilities
-        loc_posteriors = self.loc_mixture.get_posteriors(loc_data) + _EPS
+        layer1_posteriors = self.layer1_mixture.get_posteriors(layer1_data) + _EPS
 
         # C-step: One-hot encoding of posterior matrix
         # if c_step:
-        #     idx = np.argmax(loc_posteriors, axis=1)  # shape (N,)
-        #     one_hot = np.zeros_like(loc_posteriors, dtype=float)
-        #     one_hot[np.arange(loc_posteriors.shape[0]), idx] = 1.0
+        #     idx = np.argmax(layer1_posteriors, axis=1)  # shape (N,)
+        #     one_hot = np.zeros_like(layer1_posteriors, dtype=float)
+        #     one_hot[np.arange(layer1_posteriors.shape[0]), idx] = 1.0
         #     if np.any(one_hot.sum(axis=0) == 0):
         #         # there is an empty cluster
         #         raise ValueError("Empty cluster")
         #     else:
-        #         loc_posteriors = one_hot
+        #         layer1_posteriors = one_hot
 
-        it_dir = 0
-        for j in range(self.loc_n_clusters):
-            _, it_dir_component = self.dir_mixtures[j].fit(dir_data,
-                                         sample_weight=loc_posteriors[:, j],
-                                         tol=tol,
-                                         max_iter=max_iter,
-                                         verbose=verbose,
-                                         m_step_case=m_step_case,
-                                         c_step_bool=c_step_bool,
-                                         )
-            it_dir += it_dir_component
+        layer2_counter = 0
+        for l1_comp in range(self.n_layer1_components):
+            _, l2_comp_counter = self.layer2_mixtures[l1_comp].fit(layer2_data,
+                                                              sample_weight=layer1_posteriors[:, l1_comp],
+                                                              tol=tol,
+                                                              max_iter=max_iter,
+                                                              verbose=verbose,
+                                                              m_step_case=m_step_case,
+                                                              c_step_bool=c_step_bool,
+                                                              )
+            layer2_counter += l2_comp_counter
 
-        return it_loc + it_dir
+        return layer1_counter + layer2_counter
 
-    def log_pdf(self, loc_data: np.ndarray, dir_data: np.ndarray) -> np.ndarray:
+    def log_pdf(self, layer1_data: np.ndarray, layer2_data: np.ndarray) -> np.ndarray:
         """
-        Returns log p(x). Shape: (N,)
-        """
-        loc_pdf = self.loc_mixture.get_posteriors(loc_data) + _EPS  # (N,K)
-        loc_pdf *= self.loc_mixture.pdf(loc_data)[:, None]
-        dir_log_pdf_array = [self.dir_mixtures[k].log_pdf(dir_data)[:, None]  # (N,1)
-                             for k in range(self.loc_n_clusters)]
-        dir_log_pdf = np.concatenate(dir_log_pdf_array, axis=1)  # (N,K)
-        return logsumexp(np.log(loc_pdf) + dir_log_pdf, axis=1)  # (N,)
+        Compute log-likelihood per observation under the two-layer model.
 
-    def pdf(self, loc_data: np.ndarray, dir_data: np.ndarray) -> np.ndarray:
-        return np.exp(self.log_pdf(loc_data, dir_data))
+        Parameters
+        ----------
+        layer1_data : np.ndarray, shape (n_obs, d_layer1)
+            First-layer observations.
+        layer2_data : np.ndarray, shape (n_obs, d_layer2)
+            Second-layer observations.
+
+        Returns
+        -------
+        np.ndarray, shape (n_obs,)
+            Log-density for each observation.
+        """
+        layer1_pdf = self.layer1_mixture.get_posteriors(layer1_data) + _EPS  # (N,K)
+        layer1_pdf *= self.layer1_mixture.pdf(layer1_data)[:, None]
+        layer2_log_pdf_array = [self.layer2_mixtures[k].log_pdf(layer2_data)[:, None]  # (N,1)
+                             for k in range(self.n_layer1_components)]
+        layer2_log_pdf = np.concatenate(layer2_log_pdf_array, axis=1)  # (N,K)
+        return logsumexp(np.log(layer1_pdf) + layer2_log_pdf, axis=1)  # (N,)
+
+    def pdf(self, layer1_data: np.ndarray, layer2_data: np.ndarray) -> np.ndarray:
+        """
+        Compute density per observation under the two-layer model.
+
+        Returns
+        -------
+        np.ndarray, shape (n_obs,)
+            Density values for each observation.
+        """
+        return np.exp(self.log_pdf(layer1_data, layer2_data))
 
     def n_free_params(self):
         """
-        Returns number of free parameters
+        Return the total number of free parameters in the model.
         """
-        loc_n_params = self.loc_n_clusters - 1  # prior parameters
-        loc_n_params += _num_free_params_for_component(self.loc_mixture.components[0]) * self.loc_n_clusters
+        layer1_n_params = self.n_layer1_components - 1  # prior parameters
+        layer1_n_params += _num_free_params_for_component(self.layer1_mixture.components[0]) * self.n_layer1_components
 
-        dir_n_params = 0
-        for k in range(self.loc_n_clusters):
-            dir_mixture = self.dir_mixtures[k]
-            dir_n_params += dir_mixture.n_components - 1  # prior parameters
-            dir_n_params += _num_free_params_for_component(dir_mixture.components[0]) * dir_mixture.n_components
+        layer2_n_params = 0
+        for k in range(self.n_layer1_components):
+            layer2_mixture = self.layer2_mixtures[k]
+            layer2_n_params += layer2_mixture.n_components - 1  # prior parameters
+            layer2_n_params += _num_free_params_for_component(layer2_mixture.components[0]) * layer2_mixture.n_components
 
-        return dir_n_params + loc_n_params
+        return layer2_n_params + layer1_n_params
 
-    def bic_score(self, loc_data, dir_data) -> float:
-        """Bayesian Information Criterion (lower is better)."""
-        loc_data = np.asarray(loc_data, dtype=float)
-        dir_data = np.asarray(dir_data, dtype=float)
+    def bic_score(self, layer1_data, layer2_data) -> float:
+        """
+        Compute Bayesian Information Criterion (BIC).
 
-        n_obs = loc_data.shape[0]
-        penalty = np.log(n_obs) * self.n_free_params
-        ll = self.log_pdf(loc_data, dir_data).sum()
+        Lower values indicate a better trade-off between fit and complexity.
+        """
+        layer1_data = np.asarray(layer1_data, dtype=float)
+        layer2_data = np.asarray(layer2_data, dtype=float)
+
+        n_obs = layer1_data.shape[0]
+        penalty = np.log(n_obs) * self.n_free_params()
+        ll = self.log_pdf(layer1_data, layer2_data).sum()
         return penalty - 2 * ll
 
-    def completed_bic_score(self, loc_data, dir_data):
-        loc_data = np.asarray(loc_data, dtype=float)
-        dir_data = np.asarray(dir_data, dtype=float)
-        n_obs = loc_data.shape[0]
+    def completed_bic_score(self, layer1_data, layer2_data):
+        """
+        Compute complete-data BIC using hard component assignments.
 
-        penalty = np.log(n_obs) * self.n_free_params
+        Layer-1 and layer-2 latent assignments are approximated via argmax of
+        posterior probabilities.
+        """
+        layer1_data = np.asarray(layer1_data, dtype=float)
+        layer2_data = np.asarray(layer2_data, dtype=float)
+        n_obs = layer1_data.shape[0]
+
+        penalty = np.log(n_obs) * self.n_free_params()
 
         # Location mixture posteriors and assignments
-        loc_posteriors = self.loc_mixture.get_posteriors(loc_data) + _EPS
-        idx_loc = np.argmax(loc_posteriors, axis=1)  # (n_obs,)
+        layer1_posteriors = self.layer1_mixture.get_posteriors(layer1_data) + _EPS
+        idx_layer1 = np.argmax(layer1_posteriors, axis=1)  # (n_obs,)
 
         # Precompute log weights for loc mixture
-        log_weights_loc = np.log(self.loc_mixture.weights)
-        log_prior_loc = log_weights_loc[idx_loc]  # (n_obs,)
+        log_weights_layer1 = np.log(self.layer1_mixture.weights)
+        log_prior_layer1 = log_weights_layer1[idx_layer1]  # (n_obs,)
 
-        log_expfam_loc = np.empty(n_obs)
-        log_prior_dir = np.empty(n_obs)
-        log_expfam_dir = np.empty(n_obs)
+        log_expfam_layer1 = np.empty(n_obs)
+        log_prior_layer2 = np.empty(n_obs)
+        log_expfam_layer2 = np.empty(n_obs)
 
-        for j, loc_comp in enumerate(self.loc_mixture.components):
-            mask = (idx_loc == j)
+        for j, l1_comp in enumerate(self.layer1_mixture.components):
+            mask = (idx_layer1 == j)
             if not np.any(mask):
                 continue
 
             # mask is all loc_data assigned to component j
-            loc_block = loc_data[mask]
-            log_expfam_loc[mask] = loc_comp.log_pdf(loc_block)
+            layer1_block = layer1_data[mask]
+            log_expfam_layer1[mask] = l1_comp.log_pdf(layer1_block)
 
             # directional mixtures
-            dir_mixture = self.dir_mixtures[j]
-            dir_block = dir_data[mask]
-            dir_posteriors_block = dir_mixture.get_posteriors(dir_block) + _EPS  # (n_j, K_j)
-            idx_dir_block = np.argmax(dir_posteriors_block, axis=1)  # (n_j,)
+            layer2_mixture = self.layer2_mixtures[j]
+            layer2_block = layer2_data[mask]
+            layer2_posteriors_block = layer2_mixture.get_posteriors(layer2_block) + _EPS  # (n_j, K_j)
+            idx_layer2_block = np.argmax(layer2_posteriors_block, axis=1)  # (n_j,)
 
-            # Precompute log weights for dir_mixture
-            log_weights_dir = np.log(dir_mixture.weights)
-            log_prior_dir[mask] = log_weights_dir[idx_dir_block]
+            # Precompute log weights for layer2_mixture
+            log_weights_layer2 = np.log(layer2_mixture.weights)
+            log_prior_layer2[mask] = log_weights_layer2[idx_layer2_block]
 
-            # Compute dir log_pdf
+            # Compute layer2 log_pdf
             indices = np.where(mask)[0]
             for local_i, global_i in enumerate(indices):
-                k = idx_dir_block[local_i]
-                log_expfam_dir[global_i] = dir_mixture.components[k].log_pdf(dir_data[global_i])
+                k = idx_layer2_block[local_i]
+                log_expfam_layer2[global_i] = layer2_mixture.components[k].log_pdf(layer2_data[global_i])
 
-        complete_data_likelihood = (log_prior_loc + log_expfam_loc
-                          + log_prior_dir + log_expfam_dir).sum()
+        complete_data_likelihood = (log_prior_layer1 + log_expfam_layer1
+                          + log_prior_layer2 + log_expfam_layer2).sum()
 
         return penalty - 2.0 * complete_data_likelihood
 
     def plot(self,
-             figsize: float = 6,
-             arrow_scale: float = 12.0,
-             name: str = None,
-             show_title: bool = False,
-             save: bool = False,
-             show: bool = True):
+        *,
+        figsize: float = 6,
+        arrow_scale: float = 12.0,
+        title: str = "",
+        show_title: bool = False,
+        save: bool = False,
+        file_name: str = None,
+        show: bool = True):
         """
-        Plot every (Gaussian + VonMises arrows) on one shared Axes,
-        using a different color per cluster, and arrow lengths proportional to mean length r.
+        Plot first-layer Gaussian components and second-layer Von Mises means.
+
+        This visualization is available only when layer-1 components are
+        `MultivariateGaussian` and layer-2 components are `VonMises`.
+        Each layer-1 component is drawn as an ellipse, and each associated
+        layer-2 component is drawn as an arrow. Arrow length is proportional
+        to Von Mises mean resultant length.
         """
+        plot_cond = (isinstance(self.layer1_mixture.components[0], MultivariateGaussian) and
+            isinstance(self.layer2_mixtures[0].components[0], VonMises))
+        if not plot_cond:
+            raise ValueError("Plot only available for MultivariateGaussian -> VonMises Mixture-of-mixtures.")
+
         ax = mps.field(show=False, figsize=figsize)
+        cmap = plt.cm.plasma
 
-        cmap = plt.cm.Blues
-
-        for i, (loc, direction) in enumerate(zip(self.loc_mixture.components,
-                                                 self.dir_mixtures)):
-            prior = self.loc_mixture.weights[i]
-            # print(f"prior {i}: {prior*100:.2f}%")
-            col = cmap(0.2 + 0.8 * prior)
-            mean, cov = loc.params
+        for l1_idx, (layer1_component, layer2_mixture) in enumerate(zip(self.layer1_mixture.components,
+                                                                         self.layer2_mixtures)):
+            prior = self.layer1_mixture.weights[l1_idx]
+            col = cmap(-0.8 * prior + 0.9)
+            mean, cov = layer1_component.params
             add_ellips(ax, mean, cov, color=col, alpha=0.5)
             x0, y0 = mean
 
-            for vonm in direction.components:
-                loc, _ = vonm.params
-                r = vonm.mean_length  # in [0, 1]
-                length = arrow_scale * r  # scale accordingly
-                dx, dy = np.cos(loc), np.sin(loc)
+            for layer2_component in layer2_mixture.components:
+                angle_mean, _ = layer2_component.params
+                r = layer2_component.mean_length
+                length = arrow_scale * r
+                dx, dy = np.cos(angle_mean), np.sin(angle_mean)
                 add_arrow(ax, x0, y0,
                           length * dx, length * dy,
                           linewidth=0.8)
 
         if show_title:
-            plt.title(name)
+            plt.title(title)
         if save:
-            plt.savefig(f"plots/model_{name}.pdf", bbox_inches='tight')
+            plt.savefig(f"{file_name}.pdf", bbox_inches='tight')
         if show:
             plt.show()
         else:
             plt.close()
-
-
