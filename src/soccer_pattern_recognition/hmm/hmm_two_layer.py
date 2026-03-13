@@ -4,6 +4,7 @@ Two-layer Mixture-of-Mixture Emission and HMM implementations
 
 from __future__ import annotations
 
+import warnings
 from typing import Any, Mapping, Sequence
 
 import numpy as np
@@ -158,8 +159,8 @@ class TwoLayerEmission(BaseEmission):
                     )
                     layer2_mixture_list.append(layer2_mixture)
 
-                action_mom_dict[action] = TwoLayerMoM(loc_mixture=layer1_mixture,
-                                                        dir_mixtures=layer2_mixture_list)
+                action_mom_dict[action] = TwoLayerMoM(layer1_mixture=layer1_mixture,
+                                                      layer2_mixtures=layer2_mixture_list)
 
 
             #store the initialized params
@@ -251,7 +252,7 @@ class TwoLayerEmission(BaseEmission):
                         f"action_mom_[{state}]['{action}'] must be a TwoLayerMoM instance."
                     )
 
-                loc_mixture = mom.loc_mixture
+                loc_mixture = mom.layer1_mixture
                 if not isinstance(loc_mixture, MixtureModel):
                     raise TypeError(
                         f"action_mom_[{state}]['{action}'].loc_mixture must be a MixtureModel."
@@ -320,12 +321,12 @@ class TwoLayerEmission(BaseEmission):
                             f"State {state}, action '{action}', layer1 {l1_comp}: covariance must be positive-definite."
                         )
 
-                if len(mom.dir_mixtures) != n_comp_layer1:
+                if len(mom.layer2_mixtures) != n_comp_layer1:
                     raise ValueError(
                         f"State {state}, action '{action}': dir_mixtures length "
-                        f"{len(mom.dir_mixtures)}, expected {n_comp_layer1}."
+                        f"{len(mom.layer2_mixtures)}, expected {n_comp_layer1}."
                     )
-                for l1_comp, dir_mixture in enumerate(mom.dir_mixtures):
+                for l1_comp, dir_mixture in enumerate(mom.layer2_mixtures):
                     if not isinstance(dir_mixture, MixtureModel):
                         raise TypeError(
                             f"State {state}, action '{action}', layer1 {l1_comp}: dir_mixture must be MixtureModel."
@@ -468,7 +469,12 @@ class TwoLayerEmission(BaseEmission):
         if n_features != 5:
             raise ValueError("TwoLayerEmission must have 5 features.")
         if np.any(sum_hmm_post <= 0.0):
-            raise RuntimeError("Sum of gamma is not positive")
+            warnings.warn(
+                "Sum of gamma is not positive; skipping this batch in stats accumulation.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            return
 
         stats['hmm_post_sum'] += sum_hmm_post
 
@@ -490,11 +496,11 @@ class TwoLayerEmission(BaseEmission):
 
             for state in range(n_states):
                 # resp_matri_1x: shape (n_obs_action, n_comp_layer1)
-                resp_matrix_1 = self.action_mom_[state][action].loc_mixture.get_posteriors(X_action[:,1:3])
+                resp_matrix_1 = self.action_mom_[state][action].layer1_mixture.get_posteriors(X_action[:, 1:3])
                 resp_layer1_in_action[:, state, :] = resp_matrix_1
                 for l1_comp in range(n_comp_layer1):
                     # resp_matrix_2: shape (n_obs_action, n_comp_layer2)
-                    resp_matrix_2 = self.action_mom_[state][action].dir_mixtures[l1_comp].get_posteriors(X_action[:, 3:5])
+                    resp_matrix_2 = self.action_mom_[state][action].layer2_mixtures[l1_comp].get_posteriors(X_action[:, 3:5])
                     resp_layer2_in_action[:,state, l1_comp, :] = resp_matrix_2
 
             # accumulate sufficient statistics
@@ -545,19 +551,19 @@ class TwoLayerEmission(BaseEmission):
                     # update 1st layer Mixture
                     layer1_pi = (stats["mix_layer1_post"][action][state,:]
                                         / stats["action_post"][action][state])
-                    self.action_mom_[state][action].loc_mixture.weights = layer1_pi #setter normalize internally
+                    self.action_mom_[state][action].layer1_mixture.weights = layer1_pi #setter normalize internally
                     for l1_comp in range(n_comp_layer1):
                         gauss = (stats["mix_layer1_gauss"][action][state,l1_comp,:]
                                     / stats["mix_layer1_post"][action][state,l1_comp])
-                        self.action_mom_[state][action].loc_mixture.components[l1_comp].dual_param = gauss
+                        self.action_mom_[state][action].layer1_mixture.components[l1_comp].dual_param = gauss
                         # update 2nd layer Mixture
                         layer2_pi = (stats["mix_layer2_post"][action][state,l1_comp,:]
                                         / stats["mix_layer1_post"][action][state,l1_comp])
-                        self.action_mom_[state][action].dir_mixtures[l1_comp].weights = layer2_pi
+                        self.action_mom_[state][action].layer2_mixtures[l1_comp].weights = layer2_pi
                         for l2_comp in range(n_comp_layer2):
                             vm = (stats["mix_layer2_vm"][action][state,l1_comp,l2_comp,:]
                                         / stats["mix_layer2_post"][action][state,l1_comp,l2_comp])
-                            self.action_mom_[state][action].dir_mixtures[l1_comp].components[l2_comp].dual_param = vm
+                            self.action_mom_[state][action].layer2_mixtures[l1_comp].components[l2_comp].dual_param = vm
 
 
     def sample_from_state(self, state: int, random_state: Any) -> Array:
