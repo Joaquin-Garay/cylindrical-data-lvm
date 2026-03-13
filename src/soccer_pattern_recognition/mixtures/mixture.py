@@ -144,7 +144,7 @@ class MixtureModel(Distribution):
     def pdf(self, x):
         return np.exp(self.log_pdf(x))
 
-    def sample(self, n: int, rng: Optional[np.random.Generator] = None) -> Array:
+    def sample(self, n: int, rng: Optional[np.random.RandomState] = None) -> Array:
         raise NotImplementedError("MixtureModel.sample is not implemented yet.")
 
     # ---- Expectation Maximization Algorithm ----
