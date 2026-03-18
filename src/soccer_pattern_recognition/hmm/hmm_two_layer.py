@@ -495,13 +495,10 @@ class TwoLayerEmission(BaseEmission):
                                              dtype=float)
 
             for state in range(n_states):
-                # resp_matri_1x: shape (n_obs_action, n_comp_layer1)
-                resp_matrix_1 = self.action_mom_[state][action].layer1_mixture.get_posteriors(X_action[:, 1:3])
-                resp_layer1_in_action[:, state, :] = resp_matrix_1
-                for l1_comp in range(n_comp_layer1):
-                    # resp_matrix_2: shape (n_obs_action, n_comp_layer2)
-                    resp_matrix_2 = self.action_mom_[state][action].layer2_mixtures[l1_comp].get_posteriors(X_action[:, 3:5])
-                    resp_layer2_in_action[:,state, l1_comp, :] = resp_matrix_2
+                resp_layer1_in_action[:, state, :] = (self.action_mom_[state][action].
+                                                      l1_responsibilities(X_action[:,1:3], X_action[:,3:5]))
+                resp_layer2_in_action[:, state, :, :] = (self.action_mom_[state][action].
+                                                         l2_responsibilities(X_action[:,3:5]))
 
             # accumulate sufficient statistics
             # indices. n: sample_in_action; i: state; j: layer 1 component; k: layer 2 component. f: feature.
