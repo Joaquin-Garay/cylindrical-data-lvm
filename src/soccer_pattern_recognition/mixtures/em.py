@@ -8,35 +8,11 @@ from scipy.special import logsumexp
 
 from ..core import _EPS
 from .initialization import initialize_model
+from ..utils.checks import validate_sample_weight
 if TYPE_CHECKING:
     from .mixture import MixtureModel
 
 Array: TypeAlias = np.ndarray
-
-
-def _validate_sample_weight(x: Array, sample_weight: Sequence[float] | None) -> Array:
-    """Validate sample weights and return normalized weights of shape (n_samples,)."""
-    n_obs = x.shape[0]
-    if sample_weight is None:
-        return np.full(n_obs, 1.0 / n_obs, dtype=float)
-
-    w = np.asarray(sample_weight, dtype=float)
-    if w.ndim != 1:
-        raise ValueError("sample_weight must be a 1D array.")
-    if w.shape[0] != n_obs:
-        raise ValueError(
-            f"sample_weight length mismatch: expected {n_obs}, got {w.shape[0]}."
-        )
-    if not np.all(np.isfinite(w)):
-        raise ValueError("sample_weight contains non-finite values.")
-    if np.any(w < 0.0):
-        raise ValueError("sample_weight must be nonnegative.")
-
-    total = float(w.sum())
-    if total <= 0.0:
-        raise ValueError("sample_weight must sum to a positive value.")
-    return w / total
-
 
 def e_step(model: "MixtureModel",
             x: Array,
@@ -135,7 +111,7 @@ def m_step(model: "MixtureModel",
         None.
     """
     x = np.asarray(x, dtype=float)
-    sample_weight = _validate_sample_weight(x, sample_weight)
+    sample_weight = validate_sample_weight(x, sample_weight)
 
     # M-step: Maximize sample-weighted data log likelihood
     # update priors
@@ -162,7 +138,7 @@ def fit_em(model: "MixtureModel",
     The model is initialized if needed, then iterated until convergence or max_iter.
     """
     x = np.asarray(x, dtype=float)
-    sample_weight = _validate_sample_weight(x, sample_weight)
+    sample_weight = validate_sample_weight(x, sample_weight)
     if not model.is_initialized:
         initialize_model(model, x, sample_weight)
 

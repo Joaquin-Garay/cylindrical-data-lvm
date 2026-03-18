@@ -70,7 +70,6 @@ def __getattr__(name: str) -> Any:
             EmissionHMM,
             GaussianEmission,
             GaussianHMM,
-            GaussianMixtureEmission,
             TwoLayerEmission,
             TwoLayerHMM,
         )
@@ -78,7 +77,6 @@ def __getattr__(name: str) -> Any:
         _symbols = {
             "BaseEmission": BaseEmission,
             "GaussianEmission": GaussianEmission,
-            "GaussianMixtureEmission": GaussianMixtureEmission,
             "TwoLayerEmission": TwoLayerEmission,
             "EmissionHMM": EmissionHMM,
             "GaussianHMM": GaussianHMM,
