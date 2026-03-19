@@ -21,16 +21,21 @@ from ..mixtures import initialize_model
 from ..mixtures import MixtureModel
 from ..distributions import MultivariateGaussian, VonMises
 
-ACTION_MAP = {'clearance': 0,
-              'corner': 1,
-              'cross': 2,
-              'dribble': 3,
-              'freekick': 4,
-              'goalkick': 5,
-              'keeper_action': 6,
-              'pass': 7,
-              'shot': 8,
-              'throw_in': 9}
+# ACTION_MAP = {'clearance': 0,
+#               'corner': 1,
+#               'cross': 2,
+#               'dribble': 3,
+#               'freekick': 4,
+#               'goalkick': 5,
+#               'keeper_action': 6,
+#               'pass': 7,
+#               'shot': 8,
+#               'throw_in': 9}
+
+ACTION_MAP = {'starting': 10,
+              'pass':7,
+              'dribble':3,
+              'shot':8}
 
 N_POSSIBLE_ACTIONS = len(ACTION_MAP)
 
@@ -66,7 +71,7 @@ class TwoLayerEmission(BaseEmission):
 
     param_symbols = "am"
 
-    def __init__(self, emission_hyperparams: dict):
+    def __init__(self, emission_hyperparams: dict, ignore_actions: bool = False):
         """
         emission_params: dict
             example {"pass": [3,"k-means", 2, "k-means"],
@@ -83,13 +88,29 @@ class TwoLayerEmission(BaseEmission):
         """
         super().__init__()
         self.hyperparams = emission_hyperparams
-        self.n_actions = len(emission_hyperparams)
+        self.ignore_actions = bool(ignore_actions)
+        if self.ignore_actions and len(self.hyperparams) != 1:
+            raise ValueError(
+                "ignore_actions=True requires exactly one action entry in emission_hyperparams."
+            )
+        self.model_actions = (
+            tuple(self.hyperparams.keys())
+            if not self.ignore_actions
+            else (next(iter(self.hyperparams.keys())),)
+        )
+        self.n_actions = len(self.model_actions)
         # for each hmm state, store a dictionary of actions: params.
         self.action_pi_ = []
         self.action_mom_ = []
 
         self.ACTION_MAP = ACTION_MAP
         self.N_POSSIBLE_ACTIONS = N_POSSIBLE_ACTIONS
+
+    def _indices_for_action(self, X: Array, action: str) -> Array:
+        if self.ignore_actions:
+            return np.arange(X.shape[0], dtype=int)
+        action_idx = self.ACTION_MAP[action]
+        return np.where(X[:, 0] == action_idx)[0]
 
     @staticmethod
     def get_gaussian_sufficient_stat(X: Array) -> Array:
@@ -114,7 +135,9 @@ class TwoLayerEmission(BaseEmission):
         return {"a" : self.n_actions - 1,
                 "m" : p}
 
-    def initialize(self, X: Array, init_params: str, random_state: Any) -> None:
+    def initialize(self, X: Array,
+                   init_params: str,
+                   random_state: Any) -> None:
         """
         I need the full multi-sequence X, otherwise some actions might be empty.
         """
@@ -129,9 +152,11 @@ class TwoLayerEmission(BaseEmission):
         for state in range(n_states):
             action_pi_dict = {}
             action_mom_dict = {}
-            for action, value in self.hyperparams.items():
+            for action in self.model_actions:
+                value = self.hyperparams[action]
                 n_comp_layer1, init_layer1, n_comp_layer2, init_layer2 = value
-                X_action = X[X[:, 0] == self.ACTION_MAP[action]]
+                indices = self._indices_for_action(X, action)
+                X_action = X[indices]
                 n_obs_in_action = X_action.shape[0]
                 if n_obs_in_action == 0:
                     raise ValueError(f"Not enough data for {action}.")
@@ -140,7 +165,8 @@ class TwoLayerEmission(BaseEmission):
 
                 layer1_mixture = MixtureModel(
                                 [MultivariateGaussian() for _ in range(n_comp_layer1)],
-                                init=value[1]
+                                init=value[1],
+                                rng=random_state,
                                 )
                 initialize_model(
                     layer1_mixture,
@@ -151,7 +177,9 @@ class TwoLayerEmission(BaseEmission):
                 layer2_mixture_list = []
                 for l1_comp in range(n_comp_layer1):
                     layer2_mixture = MixtureModel([VonMises() for _ in range(n_comp_layer2)],
-                                 init=init_layer2)
+                                init=init_layer2,
+                                rng=random_state,
+                                )
                     initialize_model(
                         layer2_mixture,
                         X_action[:, 3:5],
@@ -167,6 +195,254 @@ class TwoLayerEmission(BaseEmission):
             self.action_pi_.append(action_pi_dict)
             self.action_mom_.append(action_mom_dict)
 
+    def export_params(self) -> dict[str, Any]:
+        n_states, _ = self._require_binding()
+        self.check()
+        payload: dict[str, Any] = {
+            "ignore_actions": bool(self.ignore_actions),
+            "model_actions": list(self.model_actions),
+            "hyperparams": {
+                action: [
+                    int(value[0]),
+                    str(value[1]),
+                    int(value[2]),
+                    str(value[3]),
+                ]
+                for action, value in self.hyperparams.items()
+            },
+            "action_pi": [],
+            "action_mom": [],
+        }
+        for state in range(n_states):
+            state_pi: dict[str, float] = {}
+            state_mom: dict[str, Any] = {}
+            for action in self.model_actions:
+                state_pi[action] = float(self.action_pi_[state][action])
+                mom = self.action_mom_[state][action]
+                layer1 = mom.layer1_mixture
+                layer1_components = []
+                for component in layer1.components:
+                    mean, covariance = component.params
+                    layer1_components.append(
+                        {
+                            "mean": np.asarray(mean, dtype=float).tolist(),
+                            "covariance": np.asarray(covariance, dtype=float).tolist(),
+                        }
+                    )
+                layer1_payload = {
+                    "weights": np.asarray(layer1.weights, dtype=float).tolist(),
+                    "components": layer1_components,
+                }
+                layer2_payload = []
+                for layer2_mix in mom.layer2_mixtures:
+                    vm_components = []
+                    for vm in layer2_mix.components:
+                        loc, kappa = vm.params
+                        vm_components.append(
+                            {"loc": float(loc), "kappa": float(kappa)}
+                        )
+                    layer2_payload.append(
+                        {
+                            "weights": np.asarray(layer2_mix.weights, dtype=float).tolist(),
+                            "components": vm_components,
+                        }
+                    )
+                state_mom[action] = {
+                    "layer1": layer1_payload,
+                    "layer2": layer2_payload,
+                }
+            payload["action_pi"].append(state_pi)
+            payload["action_mom"].append(state_mom)
+        return payload
+
+    def set_emission_params(self, params: Mapping[str, Any]) -> None:
+        if not isinstance(params, Mapping):
+            raise TypeError("params must be a mapping produced by export_params().")
+        required_keys = {"hyperparams", "action_pi", "action_mom"}
+        missing = sorted(required_keys - set(params.keys()))
+        if missing:
+            raise ValueError(f"Missing keys in emission params: {missing}.")
+
+        hyperparams_raw = params["hyperparams"]
+        if not isinstance(hyperparams_raw, Mapping) or len(hyperparams_raw) == 0:
+            raise ValueError("params['hyperparams'] must be a non-empty mapping.")
+        hyperparams: dict[str, list[Any]] = {}
+        for action, value in hyperparams_raw.items():
+            if not isinstance(value, (list, tuple)) or len(value) != 4:
+                raise ValueError(
+                    f"hyperparams['{action}'] must be [n_comp_layer1, init1, n_comp_layer2, init2]."
+                )
+            hyperparams[str(action)] = [
+                int(value[0]),
+                str(value[1]),
+                int(value[2]),
+                str(value[3]),
+            ]
+
+        ignore_actions = bool(params.get("ignore_actions", self.ignore_actions))
+        self.ignore_actions = ignore_actions
+        self.hyperparams = hyperparams
+        if self.ignore_actions and len(self.hyperparams) != 1:
+            raise ValueError(
+                "ignore_actions=True requires exactly one action entry in emission_hyperparams."
+            )
+        self.model_actions = (
+            tuple(self.hyperparams.keys())
+            if not self.ignore_actions
+            else (next(iter(self.hyperparams.keys())),)
+        )
+        self.n_actions = len(self.model_actions)
+
+        if "model_actions" in params:
+            exported_model_actions = tuple(params["model_actions"])
+            if exported_model_actions != self.model_actions:
+                raise ValueError(
+                    "params['model_actions'] does not match hyperparams/ignore_actions."
+                )
+
+        action_pi_raw = params["action_pi"]
+        action_mom_raw = params["action_mom"]
+        if not isinstance(action_pi_raw, Sequence) or not isinstance(action_mom_raw, Sequence):
+            raise TypeError("params['action_pi'] and params['action_mom'] must be sequences.")
+        if len(action_pi_raw) != len(action_mom_raw):
+            raise ValueError("params['action_pi'] and params['action_mom'] length mismatch.")
+
+        n_states_from_params = len(action_pi_raw)
+        try:
+            n_states_bound, _ = self._require_binding()
+            if n_states_bound != n_states_from_params:
+                raise ValueError(
+                    f"State count mismatch: bound model has {n_states_bound}, params contain {n_states_from_params}."
+                )
+        except RuntimeError:
+            pass
+
+        expected_actions = set(self.model_actions)
+        action_pi_list: list[dict[str, float]] = []
+        action_mom_list: list[dict[str, TwoLayerMoM]] = []
+
+        for state_idx in range(n_states_from_params):
+            state_pi_raw = action_pi_raw[state_idx]
+            state_mom_raw = action_mom_raw[state_idx]
+            if not isinstance(state_pi_raw, Mapping) or not isinstance(state_mom_raw, Mapping):
+                raise TypeError(
+                    f"State {state_idx}: action_pi/action_mom entries must be mappings."
+                )
+            if set(state_pi_raw.keys()) != expected_actions:
+                raise ValueError(
+                    f"State {state_idx}: action_pi keys mismatch expected actions."
+                )
+            if set(state_mom_raw.keys()) != expected_actions:
+                raise ValueError(
+                    f"State {state_idx}: action_mom keys mismatch expected actions."
+                )
+
+            state_pi: dict[str, float] = {}
+            state_mom: dict[str, TwoLayerMoM] = {}
+            for action in self.model_actions:
+                n_comp_layer1, init_layer1, n_comp_layer2, init_layer2 = self.hyperparams[action]
+                state_pi[action] = float(state_pi_raw[action])
+
+                action_mom_payload = state_mom_raw[action]
+                if not isinstance(action_mom_payload, Mapping):
+                    raise TypeError(
+                        f"State {state_idx}, action '{action}': action_mom payload must be a mapping."
+                    )
+                if "layer1" not in action_mom_payload or "layer2" not in action_mom_payload:
+                    raise ValueError(
+                        f"State {state_idx}, action '{action}': missing layer1/layer2 payload."
+                    )
+
+                layer1_payload = action_mom_payload["layer1"]
+                layer2_payload = action_mom_payload["layer2"]
+                if not isinstance(layer1_payload, Mapping) or not isinstance(layer2_payload, Sequence):
+                    raise TypeError(
+                        f"State {state_idx}, action '{action}': invalid layer payload types."
+                    )
+                if len(layer2_payload) != n_comp_layer1:
+                    raise ValueError(
+                        f"State {state_idx}, action '{action}': layer2 list must have {n_comp_layer1} entries."
+                    )
+
+                layer1_weights = np.asarray(layer1_payload["weights"], dtype=float)
+                layer1_components_payload = layer1_payload["components"]
+                if not isinstance(layer1_components_payload, Sequence):
+                    raise TypeError(
+                        f"State {state_idx}, action '{action}': layer1 components must be a sequence."
+                    )
+                if len(layer1_components_payload) != n_comp_layer1:
+                    raise ValueError(
+                        f"State {state_idx}, action '{action}': layer1 components length mismatch."
+                    )
+                layer1_components = []
+                for component_payload in layer1_components_payload:
+                    if not isinstance(component_payload, Mapping):
+                        raise TypeError(
+                            f"State {state_idx}, action '{action}': invalid layer1 component payload."
+                        )
+                    mean = np.asarray(component_payload["mean"], dtype=float)
+                    covariance = np.asarray(component_payload["covariance"], dtype=float)
+                    layer1_components.append(
+                        MultivariateGaussian(mean=mean, covariance=covariance)
+                    )
+                layer1_mixture = MixtureModel(
+                    layer1_components,
+                    weights=layer1_weights,
+                    init=init_layer1,
+                )
+
+                layer2_mixtures = []
+                for l1_comp, layer2_mix_payload in enumerate(layer2_payload):
+                    if not isinstance(layer2_mix_payload, Mapping):
+                        raise TypeError(
+                            f"State {state_idx}, action '{action}', layer1 {l1_comp}: invalid layer2 payload."
+                        )
+                    layer2_weights = np.asarray(layer2_mix_payload["weights"], dtype=float)
+                    vm_components_payload = layer2_mix_payload["components"]
+                    if not isinstance(vm_components_payload, Sequence):
+                        raise TypeError(
+                            f"State {state_idx}, action '{action}', layer1 {l1_comp}: components must be a sequence."
+                        )
+                    if len(vm_components_payload) != n_comp_layer2:
+                        raise ValueError(
+                            f"State {state_idx}, action '{action}', layer1 {l1_comp}: layer2 components length mismatch."
+                        )
+                    vm_components = []
+                    for vm_payload in vm_components_payload:
+                        if not isinstance(vm_payload, Mapping):
+                            raise TypeError(
+                                f"State {state_idx}, action '{action}', layer1 {l1_comp}: invalid VonMises payload."
+                            )
+                        vm_components.append(
+                            VonMises(
+                                loc=float(vm_payload["loc"]),
+                                kappa=float(vm_payload["kappa"]),
+                            )
+                        )
+                    layer2_mixtures.append(
+                        MixtureModel(
+                            vm_components,
+                            weights=layer2_weights,
+                            init=init_layer2,
+                        )
+                    )
+
+                state_mom[action] = TwoLayerMoM(
+                    layer1_mixture=layer1_mixture,
+                    layer2_mixtures=layer2_mixtures,
+                )
+
+            action_pi_list.append(state_pi)
+            action_mom_list.append(state_mom)
+
+        self.action_pi_ = action_pi_list
+        self.action_mom_ = action_mom_list
+
+        try:
+            self.check()
+        except RuntimeError:
+            # Emission is not bound yet; validation will run once bound by the HMM.
+            pass
 
     def check(self) -> None:
         n_states, n_features = self._require_binding()
@@ -177,12 +453,13 @@ class TwoLayerEmission(BaseEmission):
             raise ValueError("hyperparams must be a non-empty dict.")
 
         allowed_init = {"k-means++", "k-means", "random_from_data", "random"}
-        expected_actions = tuple(self.hyperparams.keys())
+        expected_actions = self.model_actions
         expected_action_set = set(expected_actions)
         action_spec: dict[str, tuple[int, int]] = {}
 
-        for action, value in self.hyperparams.items():
-            if action not in self.ACTION_MAP:
+        for action in expected_actions:
+            value = self.hyperparams[action]
+            if not self.ignore_actions and action not in self.ACTION_MAP:
                 raise ValueError(f"Unknown action '{action}' in hyperparams.")
             if not isinstance(value, (tuple, list)) or len(value) != 4:
                 raise ValueError(
@@ -389,9 +666,8 @@ class TwoLayerEmission(BaseEmission):
         n_states, _ = self._require_binding()
         ll = np.zeros((X.shape[0],n_states))
         for state in range(n_states):
-            for action in self.hyperparams.keys():
-                action_idx = self.ACTION_MAP[action]
-                indices = np.where(X[:,0] == action_idx)[0]
+            for action in self.model_actions:
+                indices = self._indices_for_action(X, action)
                 if indices.size == 0:
                     # In multi-sequence training a sequence can miss one or more actions.
                     # Skip absent actions for this sequence chunk.
@@ -410,23 +686,23 @@ class TwoLayerEmission(BaseEmission):
             "hmm_post_sum": np.zeros((n_states,), dtype=float),
 
             "action_post": {action: np.zeros((n_states,), dtype=float)
-                            for action in self.hyperparams.keys()},
+                            for action in self.model_actions},
 
-            "mix_layer1_post": {action: np.zeros((n_states, value[0]),
+            "mix_layer1_post": {action: np.zeros((n_states, self.hyperparams[action][0]),
                                                  dtype=float)
-                            for action,value in self.hyperparams.items()},
+                            for action in self.model_actions},
 
-            "mix_layer1_gauss": {action: np.zeros((n_states, value[0], 2+2**2),
+            "mix_layer1_gauss": {action: np.zeros((n_states, self.hyperparams[action][0], 2+2**2),
                                                 dtype=float)
-                            for action,value in self.hyperparams.items()},
+                            for action in self.model_actions},
 
-            "mix_layer2_post": {action: np.zeros((n_states, value[0], value[2]),
+            "mix_layer2_post": {action: np.zeros((n_states, self.hyperparams[action][0], self.hyperparams[action][2]),
                                                  dtype=float)
-                            for action,value in self.hyperparams.items()},
+                            for action in self.model_actions},
 
-            "mix_layer2_vm": {action: np.zeros((n_states, value[0], value[2], 2),
+            "mix_layer2_vm": {action: np.zeros((n_states, self.hyperparams[action][0], self.hyperparams[action][2], 2),
                                                 dtype=float)
-                            for action,value in self.hyperparams.items()},
+                            for action in self.model_actions},
         }
 
     def accumulate_sufficient_statistics(
@@ -478,11 +754,10 @@ class TwoLayerEmission(BaseEmission):
 
         stats['hmm_post_sum'] += sum_hmm_post
 
-        for action in self.hyperparams.keys():
+        for action in self.model_actions:
             n_comp_layer1 = self.hyperparams[action][0]
             n_comp_layer2 = self.hyperparams[action][2]
-            action_idx = self.ACTION_MAP[action]
-            indices = np.where(X[:, 0] == action_idx)[0]
+            indices = self._indices_for_action(X, action)
             n_obs_in_action = len(indices)
             if n_obs_in_action == 0:
                 # Missing actions are expected for sequence-level chunks when using lengths.
@@ -535,7 +810,7 @@ class TwoLayerEmission(BaseEmission):
         if "a" not in params and "m" not in params:
             return
         #self.check()
-        for action in self.hyperparams.keys():
+        for action in self.model_actions:
             n_comp_layer1 = self.hyperparams[action][0]
             n_comp_layer2 = self.hyperparams[action][2]
             for state in range(n_states):
@@ -580,6 +855,7 @@ class TwoLayerHMM(EmissionHMM):
         emission_hyperparams,
         n_components: int = 1,
         *,
+        ignore_actions: bool = False,
         startprob_prior: Any = 1.0,
         transmat_prior: Any = 1.0,
         algorithm: str = "viterbi",
@@ -593,7 +869,11 @@ class TwoLayerHMM(EmissionHMM):
     ) -> None:
 
         self.emission_hyperparams = emission_hyperparams
-        emission = TwoLayerEmission(emission_hyperparams)
+        self.ignore_actions = bool(ignore_actions)
+        emission = TwoLayerEmission(
+            emission_hyperparams,
+            ignore_actions=ignore_actions,
+        )
 
         super().__init__(
             n_components=n_components,
@@ -609,3 +889,85 @@ class TwoLayerHMM(EmissionHMM):
             init_params=init_params,
             implementation=implementation,
         )
+
+    def export_model_params(self) -> dict[str, Any]:
+        if not hasattr(self, "startprob_") or not hasattr(self, "transmat_"):
+            raise RuntimeError(
+                "Model transition parameters are not initialized. Fit the model first."
+            )
+        if not hasattr(self, "n_features"):
+            raise RuntimeError(
+                "Model n_features is not initialized. Fit the model first."
+            )
+        self.emission.bind(self.n_components, self.n_features)
+        self.emission.check()
+        return {
+            "n_components": int(self.n_components),
+            "n_features": int(self.n_features),
+            "startprob": np.asarray(self.startprob_, dtype=float).tolist(),
+            "transmat": np.asarray(self.transmat_, dtype=float).tolist(),
+            "emission": self.emission.export_params(),
+        }
+
+    def set_model_params(self, params: Mapping[str, Any]) -> None:
+        if not isinstance(params, Mapping):
+            raise TypeError(
+                "params must be a mapping produced by export_model_params()."
+            )
+        required_keys = {"n_components", "n_features", "startprob", "transmat", "emission"}
+        missing = sorted(required_keys - set(params.keys()))
+        if missing:
+            raise ValueError(f"Missing keys in model params: {missing}.")
+
+        emission_params = params["emission"]
+        if not isinstance(emission_params, Mapping):
+            raise TypeError("params['emission'] must be a mapping.")
+        if "hyperparams" not in emission_params:
+            raise ValueError("params['emission'] must include 'hyperparams'.")
+
+        n_components = int(params["n_components"])
+        n_features = int(params["n_features"])
+        self.n_components = n_components
+        self.n_features = n_features
+        startprob = np.asarray(params["startprob"], dtype=float)
+        if startprob.shape != (n_components,):
+            raise ValueError(
+                f"params['startprob'] must have shape {(n_components,)}, got {startprob.shape}."
+            )
+        if not np.all(np.isfinite(startprob)):
+            raise ValueError("params['startprob'] contains non-finite values.")
+        if np.any(startprob < 0.0):
+            raise ValueError("params['startprob'] must be non-negative.")
+        startprob_sum = float(startprob.sum())
+        if startprob_sum <= 0.0:
+            raise ValueError("params['startprob'] must sum to a positive value.")
+        self.startprob_ = startprob / startprob_sum
+
+        transmat = np.asarray(params["transmat"], dtype=float)
+        if transmat.shape != (n_components, n_components):
+            raise ValueError(
+                "params['transmat'] must have shape "
+                f"{(n_components, n_components)}, got {transmat.shape}."
+            )
+        if not np.all(np.isfinite(transmat)):
+            raise ValueError("params['transmat'] contains non-finite values.")
+        if np.any(transmat < 0.0):
+            raise ValueError("params['transmat'] must be non-negative.")
+        row_sums = transmat.sum(axis=1, keepdims=True)
+        if np.any(row_sums <= 0.0):
+            raise ValueError(
+                "Each row of params['transmat'] must sum to a positive value."
+            )
+        self.transmat_ = transmat / row_sums
+
+        ignore_actions = bool(emission_params.get("ignore_actions", self.ignore_actions))
+        hyperparams = emission_params["hyperparams"]
+        self.ignore_actions = ignore_actions
+        self.emission_hyperparams = hyperparams
+        self.emission = TwoLayerEmission(
+            hyperparams,
+            ignore_actions=ignore_actions,
+        )
+        self.emission.bind(self.n_components, self.n_features)
+        self.emission.set_emission_params(emission_params)
+        self._check()

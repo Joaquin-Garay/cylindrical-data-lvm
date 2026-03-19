@@ -109,14 +109,47 @@ class EmissionHMM(BaseHMM):
             n_scalars.setdefault(symbol, 0)
         return n_scalars
 
+    def _can_warm_start(self, X: np.ndarray) -> bool:
+        if X.ndim != 2:
+            return False
+        if not hasattr(self, "startprob_") or not hasattr(self, "transmat_"):
+            return False
+        if hasattr(self, "n_features") and self.n_features != X.shape[1]:
+            return False
+        try:
+            self.emission.bind(self.n_components, X.shape[1])
+            self.emission.check()
+        except Exception:
+            return False
+        return True
+
+    def fit(self, X, lengths=None,
+            *,
+            warm_start: bool = False,
+            init_params: str = ""):
+        X_array = np.asarray(X, dtype=float)
+        if not warm_start:
+            return super().fit(X_array, lengths=lengths)
+        if not self._can_warm_start(X_array):
+            return super().fit(X_array, lengths=lengths)
+
+        original_init_params = self.init_params
+        self.init_params = init_params
+        try:
+            return super().fit(X_array, lengths=lengths)
+        finally:
+            self.init_params = original_init_params
+
     def _init(self, X, lengths=None):
         super()._init(X, lengths)
         self.emission.bind(self.n_components, self.n_features)
-        self.emission.initialize(
-            X=np.asarray(X, dtype=float),
-            init_params=self.init_params,
-            random_state=check_random_state(self.random_state),
-        )
+        init_emission = bool(set(self.init_params) & set(self.emission.param_symbols))
+        if init_emission:
+            self.emission.initialize(
+                X=np.asarray(X, dtype=float),
+                init_params=self.init_params,
+                random_state=check_random_state(self.random_state),
+            )
 
     def _check(self):
         super()._check()
