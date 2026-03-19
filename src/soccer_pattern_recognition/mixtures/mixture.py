@@ -6,10 +6,10 @@ Mixture model.
 
 from __future__ import annotations
 import numpy as np
-from typing import Optional, Sequence, Tuple, TypeAlias
+from typing import Optional, Sequence, Tuple, TypeAlias, Union
 
 from ..distributions import Distribution
-from ..distributions.expfam import ExponentialFamily
+from ..distributions.expfam import ExponentialFamily, MultivariateGaussian, VonMises
 from .em import e_step, c_step, m_step, fit_em
 from .initialization import initialize_model
 from scipy.special import logsumexp
@@ -22,11 +22,18 @@ class MixtureModel(Distribution):
     def __init__(self, components: list[ExponentialFamily],
                  weights: Optional[Array] = None,
                  init: Optional[str] = None,
-                 rng: Optional[int] = None,
+                 rng: Optional[Union[int, np.random.RandomState]] = None,
                  ):
 
         self._components = components
-        self._rng = np.random.RandomState(42) if rng is None else np.random.RandomState(rng)
+        if rng is None:
+            self._rng = np.random.RandomState(42)
+        elif isinstance(rng, int):
+            self._rng = np.random.RandomState(int(rng))
+        elif isinstance(rng, np.random.RandomState):
+            self._rng = rng
+        else:
+            raise TypeError("rng must be None, an int seed, or np.random.RandomState.")
 
         allowed = {"k-means++", "k-means", "random_from_data", "random"}
         if init is None:
@@ -101,6 +108,53 @@ class MixtureModel(Distribution):
     @property
     def is_initialized(self):
         return self._is_initialized
+
+    def set_params(
+        self,
+        component_params: Sequence[Tuple[Array, Array] | Tuple[float, float]],
+        weights: Optional[Array] = None,
+    ) -> None:
+        """
+        Set component parameters (and optionally weights) for supported components.
+
+        Supported component types:
+        - MultivariateGaussian: params = (mean, covariance)
+        - VonMises: params = (loc, kappa)
+        """
+        if len(component_params) != self.n_components:
+            raise ValueError(
+                f"component_params must have length {self.n_components}, got {len(component_params)}."
+            )
+
+        for idx, (component, params) in enumerate(zip(self._components, component_params)):
+            if isinstance(component, MultivariateGaussian):
+                if not isinstance(params, (tuple, list)) or len(params) != 2:
+                    raise ValueError(
+                        f"Component {idx} expects (mean, covariance)."
+                    )
+                mean, covariance = params
+                component.params = (
+                    np.asarray(mean, dtype=float),
+                    np.asarray(covariance, dtype=float),
+                )
+            elif isinstance(component, VonMises):
+                if not isinstance(params, (tuple, list)) or len(params) != 2:
+                    raise ValueError(
+                        f"Component {idx} expects (loc, kappa)."
+                    )
+                loc, kappa = params
+                component.loc = float(loc)
+                component.kappa = float(kappa)
+            else:
+                raise TypeError(
+                    f"Unsupported component type at index {idx}: {type(component).__name__}. "
+                    "Only MultivariateGaussian and VonMises are supported."
+                )
+
+        if weights is not None:
+            self.weights = np.asarray(weights, dtype=float)
+        elif self._weights is not None:
+            self._is_initialized = True
 
     def get_posteriors(self, x: Array):
         x = np.asarray(x, dtype=float)
