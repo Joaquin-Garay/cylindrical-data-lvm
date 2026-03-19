@@ -13,9 +13,12 @@ __all__ = [
     "utils",
     "MixtureModel",
     "TwoLayerMoM",
+    "consolidate",
+    "add_noise",
+    "prepare_data",
+    "save_spadl_h5",
     "BaseEmission",
     "GaussianEmission",
-    "GaussianMixtureEmission",
     "TwoLayerEmission",
     "EmissionHMM",
     "GaussianHMM",
@@ -56,10 +59,21 @@ def __getattr__(name: str) -> Any:
         globals()[name] = TwoLayerMoM
         return TwoLayerMoM
 
+    if name in {"consolidate", "add_noise", "prepare_data", "save_spadl_h5"}:
+        from .utils import add_noise, consolidate, prepare_data, save_spadl_h5
+
+        _symbols = {
+            "consolidate": consolidate,
+            "add_noise": add_noise,
+            "prepare_data": prepare_data,
+            "save_spadl_h5": save_spadl_h5,
+        }
+        globals().update(_symbols)
+        return _symbols[name]
+
     if name in {
         "BaseEmission",
         "GaussianEmission",
-        "GaussianMixtureEmission",
         "TwoLayerEmission",
         "EmissionHMM",
         "GaussianHMM",
