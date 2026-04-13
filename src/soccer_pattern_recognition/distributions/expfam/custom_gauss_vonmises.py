@@ -21,7 +21,7 @@ class IndGaussVM(ExponentialFamily):
 
     def __init__(self, coef_gaus: float, coef_vm: float):
         self._vonmises = VonMises()
-        self._gaussian = MultivariateGaussian()
+        self._gaussian = MultivariateGaussian(d=2)
         self._coef_gauss = float(coef_gaus)
         self._coef_vm = float(coef_vm)
         self._validate_coefs()

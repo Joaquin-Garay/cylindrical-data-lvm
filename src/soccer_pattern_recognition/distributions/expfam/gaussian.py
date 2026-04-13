@@ -146,15 +146,28 @@ class MultivariateGaussian(ExponentialFamily):
     Multivariate Gaussian N(mu, sigma), with mu = mean vector and sigma = covariance matrix
     """
 
-    def __init__(self, mean: Optional[Array] = None,
+    def __init__(self, d: int,
+                 *,
+                 mean: Optional[Array] = None,
                  covariance: Optional[Array] = None):
         super().__init__()
-        self._mean = np.zeros(2) if mean is None else np.asarray(mean, dtype=float)
-        self._covariance = np.eye(self._mean.size) if covariance is None else np.asarray(covariance, dtype=float)
+        if not isinstance(d, (int, np.integer)) or int(d) < 1:
+            raise ValueError("d must be an integer >= 1.")
+        self._d = int(d)
+        self._mean = np.zeros(self._d, dtype=float) if mean is None else np.asarray(mean, dtype=float)
+        self._covariance = np.eye(self._d, dtype=float) if covariance is None else np.asarray(covariance, dtype=float)
         self._validate()
         self._cache()
 
     def _validate(self):
+        if self._mean.ndim != 1 or self._mean.shape[0] != self._d:
+            raise ValueError(f"Mean must have shape ({self._d},).")
+        if self._covariance.ndim != 2 or self._covariance.shape != (self._d, self._d):
+            raise ValueError(f"Covariance must have shape ({self._d}, {self._d}).")
+        if not np.all(np.isfinite(self._mean)):
+            raise ValueError("Mean contains non-finite values.")
+        if not np.all(np.isfinite(self._covariance)):
+            raise ValueError("Covariance contains non-finite values.")
         if self._covariance.shape[0] != self._covariance.shape[1]:
             raise ValueError("Covariance matrix must be square.")
         if self._mean.shape[0] != self._covariance.shape[0]:
@@ -173,7 +186,7 @@ class MultivariateGaussian(ExponentialFamily):
     # ---- Getters and Setter ----
     @property
     def d(self) -> int:
-        return self._mean.size
+        return self._d
 
     @property
     def params(self) -> Tuple[Array, Array]:

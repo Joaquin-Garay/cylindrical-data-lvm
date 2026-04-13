@@ -40,7 +40,7 @@ class VonMises(ExponentialFamily):
     @staticmethod
     def _inv_mean_length(r: float):
         """
-        A^{-1} approximation given by Best and Fisher (1981).
+        A^{-1} approximation given by Best and Fisher (1981). Only for vonMises (d=2).
         """
         if r > 0.85:
             return 1.0 / (r ** 3 - 4 * r ** 2 + 3 * r)
@@ -202,7 +202,7 @@ class VonMises(ExponentialFamily):
         self,
         x: Array,
         sample_weight: Optional[Array] = None,
-        case: str = "classic",
+        case: str = "bregman",
     ) -> "VonMises":
 
         self._validate_case(case)
@@ -222,16 +222,6 @@ class VonMises(ExponentialFamily):
                 self._loc, self._kappa = loc, kappa
                 self._validate()
                 self._update_params()
-
-            # case "approximation":
-            #     eta = np.average(x, axis=0, weights=sample_weight)
-            #     loc = np.arctan2(eta[1], eta[0])
-            #     R = np.minimum(np.linalg.norm(eta, ord=None), self._MAX_A)
-            #     kappa = self._inv_mean_length_v2(R)
-            #
-            #     self._loc, self._kappa = loc, kappa
-            #     self._validate()
-            #     self._update_params()
 
             case "classic":
                 # Compute MLE with numerical optimizer
