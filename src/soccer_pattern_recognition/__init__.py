@@ -13,6 +13,8 @@ __all__ = [
     "utils",
     "MixtureModel",
     "TwoLayerMoM",
+    "IsolatedTwoLayerMoM",
+    "SoccerTwoLayerMoM",
     "consolidate",
     "add_noise",
     "prepare_data",
@@ -31,6 +33,8 @@ __all__ = [
     "UnivariateGaussian",
     "MultivariateGaussian",
     "VonMises",
+    "VonMisesFisher",
+    "Cylindrical",
     "IndGaussVM",
 ]
 
@@ -56,10 +60,22 @@ def __getattr__(name: str) -> Any:
         return MixtureModel
 
     if name == "TwoLayerMoM":
-        from .hierarchical.two_layer import TwoLayerMoM
+        from .hierarchical import TwoLayerMoM
 
         globals()[name] = TwoLayerMoM
         return TwoLayerMoM
+
+    if name == "IsolatedTwoLayerMoM":
+        from .hierarchical import IsolatedTwoLayerMoM
+
+        globals()[name] = IsolatedTwoLayerMoM
+        return IsolatedTwoLayerMoM
+
+    if name == "SoccerTwoLayerMoM":
+        from .hierarchical import SoccerTwoLayerMoM
+
+        globals()[name] = SoccerTwoLayerMoM
+        return SoccerTwoLayerMoM
 
     if name in {"consolidate", "add_noise", "prepare_data", "save_spadl_h5"}:
         from .utils import add_noise, consolidate, prepare_data, save_spadl_h5
@@ -114,16 +130,20 @@ def __getattr__(name: str) -> Any:
         "UnivariateGaussian",
         "MultivariateGaussian",
         "VonMises",
+        "VonMisesFisher",
+        "Cylindrical",
         "IndGaussVM",
     }:
         from .distributions import (
             Categorical,
+            Cylindrical,
             Distribution,
             ExponentialFamily,
             IndGaussVM,
             MultivariateGaussian,
             UnivariateGaussian,
             VonMises,
+            VonMisesFisher,
         )
 
         _symbols = {
@@ -133,6 +153,8 @@ def __getattr__(name: str) -> Any:
             "UnivariateGaussian": UnivariateGaussian,
             "MultivariateGaussian": MultivariateGaussian,
             "VonMises": VonMises,
+            "VonMisesFisher": VonMisesFisher,
+            "Cylindrical": Cylindrical,
             "IndGaussVM": IndGaussVM,
         }
         globals().update(_symbols)

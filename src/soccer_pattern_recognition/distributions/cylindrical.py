@@ -246,11 +246,11 @@ class Cylindrical(Distribution):
         vmf_mu = np.array2string(self._vmf.mu, precision=4, separator=" ", suppress_small=True)
         return (
             "Cylindrical(\n"
-            f"  d_gauss={self._d_gauss}, d_vmf={self._d_vmf},\n"
-            f"  mu_gauss={mu_gauss},\n"
-            f"  cross_cov={cross_cov},\n"
-            f"  cond_cov={cond_cov},\n"
-            f"  vmf_mu={vmf_mu},\n"
+            f"  {self._d_gauss}, {self._d_vmf}):\n"
+            f"  mu_gauss={mu_gauss}\n"
+            f"  cross_cov={cross_cov}\n"
+            f"  cond_cov={cond_cov}\n"
+            f"  vmf_mu={vmf_mu}\n"
             f"  vmf_kappa={self._vmf.kappa:.6g}\n"
             ")"
         )
