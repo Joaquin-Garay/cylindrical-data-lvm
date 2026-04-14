@@ -198,7 +198,30 @@ class MixtureModel(Distribution):
         return np.exp(self.log_pdf(x))
 
     def sample(self, n: int, rng: Optional[np.random.RandomState] = None) -> Array:
-        raise NotImplementedError("MixtureModel.sample is not implemented yet.")
+        self._validate_n_samples(n)
+        if self._weights is None:
+            raise RuntimeError("Mixture weights are not initialized yet.")
+
+        rng = np.random.RandomState() if rng is None else rng
+        hidden_y = rng.choice(self.n_components, size=n, p=self._weights)
+        out = None
+        for j, comp in enumerate(self._components):
+            idx = np.where(hidden_y == j)[0]
+            if idx.size == 0:
+                continue
+            s = comp.sample(int(idx.size), rng=rng)
+            # Allocate output once, matching the component sample shape
+            if out is None:
+                if s.ndim == 1:
+                    out = np.empty(n, dtype=float)
+                else:
+                    out = np.empty((n, s.shape[1]), dtype=float)
+            out[idx] = s
+
+        if out is None:
+            raise RuntimeError("Sampling failed: no samples were generated.")
+        return out
+
 
     # ---- Expectation Maximization Algorithm ----
 
