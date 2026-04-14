@@ -11,13 +11,14 @@ import numpy as np
 from scipy.special import logsumexp
 
 from ..core import _EPS, _TINY
+from ..distributions import Distribution
 from ..mixtures import MixtureModel, initialize_model
 from ..metrics.model_selection import _num_free_params_for_component
 from ..utils import (
     validate_sample_weight
 )
 
-class TwoLayerMoM:
+class TwoLayerMoM(Distribution):
     """
     Two-layer mixture-of-mixtures model.
 
@@ -323,7 +324,49 @@ class TwoLayerMoM:
         return n_iter
 
     def sample(self, n: int, rng: Optional[np.random.RandomState] = None) -> Array:
-        pass
+        self._validate_n_samples(n)
+        rng = np.random.RandomState() if rng is None else rng
+        hidden_l1 = rng.choice(
+            self.layer1_mixture.n_components,
+            size=n,
+            p=self.layer1_mixture.weights,
+        )
+        out_1 = None
+        out_2 = None
+        for j, comp_l1 in enumerate(self.layer1_mixture.components):
+            idx_1 = np.where(hidden_l1 == j)[0]
+            if idx_1.size == 0:
+                continue
+            s_l1 = np.asarray(comp_l1.sample(int(idx_1.size), rng=rng), dtype=float)
+            if s_l1.ndim == 1:
+                s_l1 = s_l1[:, None]
+            if out_1 is None:
+                out_1 = np.empty((n, s_l1.shape[1]), dtype=float)
+            out_1[idx_1] = s_l1
+
+            hidden_l2 = rng.choice(
+                self.layer2_mixtures[j].n_components,
+                size=int(idx_1.size),
+                p=self.layer2_mixtures[j].weights,
+            )
+            for k, comp_l2 in enumerate(self.layer2_mixtures[j].components):
+                local_idx = np.where(hidden_l2 == k)[0]
+                if local_idx.size == 0:
+                    continue
+
+                # Map local indices within idx_1 back to global sample indices.
+                global_idx = idx_1[local_idx]
+
+                s_l2 = comp_l2.sample(int(local_idx.size), rng=rng)
+                if s_l2.ndim == 1:
+                    s_l2 = s_l2[:, None]
+                if out_2 is None:
+                    out_2 = np.empty((n, s_l2.shape[1]), dtype=float)
+                out_2[global_idx] = s_l2
+
+        if out_1 is None or out_2 is None:
+            raise RuntimeError("Sampling failed: no samples were generated.")
+        return np.concatenate((out_1, out_2), axis=1)
 
     def log_pdf(self, layer1_data: Array, layer2_data: Array) -> Array:
         """
