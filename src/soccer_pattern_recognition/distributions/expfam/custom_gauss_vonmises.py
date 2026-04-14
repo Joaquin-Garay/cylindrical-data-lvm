@@ -7,8 +7,7 @@ from typing import Optional, Tuple
 import numpy as np
 from scipy.special import i0e
 
-
-from ..base import Array
+from ...core.types import Array
 from .base import ExponentialFamily
 from .gaussian import MultivariateGaussian
 from .vonmises import VonMises

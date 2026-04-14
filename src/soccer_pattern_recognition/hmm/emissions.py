@@ -6,12 +6,11 @@ from abc import ABC, abstractmethod
 from typing import Any, Mapping
 
 from .base_emission import BaseEmission
+from ..core.types import Array
 
 import numpy as np
 from sklearn.cluster import KMeans
 from sklearn.utils import check_random_state
-
-Array = np.ndarray
 
 class GaussianEmission(BaseEmission):
     """
@@ -215,5 +214,4 @@ class GaussianEmission(BaseEmission):
             raise ValueError(f"state must be in [0, {nc - 1}], got {state}.")
         random_state = check_random_state(random_state)
         return random_state.normal(self.means_[state], np.sqrt(self.covars_[state]))
-
 

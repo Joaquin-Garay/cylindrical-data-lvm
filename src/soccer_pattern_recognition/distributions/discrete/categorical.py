@@ -5,7 +5,8 @@ from __future__ import annotations
 from typing import Optional
 import numpy as np
 
-from ..base import Array, Distribution
+from ...core.types import Array
+from ..base import Distribution
 
 
 class Categorical(Distribution):

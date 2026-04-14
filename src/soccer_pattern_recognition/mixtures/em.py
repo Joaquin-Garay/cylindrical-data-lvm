@@ -1,18 +1,17 @@
 """ Expectation-Maximization algorithm for Mixture models"""
 
 from __future__ import annotations
-from typing import TYPE_CHECKING, Tuple, Sequence, TypeAlias
+from typing import TYPE_CHECKING, Tuple, Sequence
 
 import numpy as np
 from scipy.special import logsumexp
 
 from ..core import _EPS
+from ..core.types import Array
 from .initialization import initialize_model
 from ..utils.checks import validate_sample_weight
 if TYPE_CHECKING:
     from .mixture import MixtureModel
-
-Array: TypeAlias = np.ndarray
 
 def e_step(model: "MixtureModel",
             x: Array,

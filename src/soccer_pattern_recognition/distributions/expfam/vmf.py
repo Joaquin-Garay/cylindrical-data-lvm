@@ -9,7 +9,7 @@ from scipy.optimize import minimize_scalar
 from scipy.special import ive
 from scipy.stats import vonmises_fisher
 
-from ..base import Array
+from ...core.types import Array
 from .base import ExponentialFamily
 
 

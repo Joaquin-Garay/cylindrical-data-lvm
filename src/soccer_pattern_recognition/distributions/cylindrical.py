@@ -4,7 +4,8 @@ from typing import Optional, Tuple
 
 import numpy as np
 
-from .base import Array, Distribution
+from ..core.types import Array
+from .base import Distribution
 from .expfam import MultivariateGaussian, VonMisesFisher
 
 

@@ -7,7 +7,7 @@ from typing import Optional, Tuple
 import numpy as np
 
 from ...core import _EPS
-from ..base import Array
+from ...core.types import Array
 from .base import ExponentialFamily
 
 

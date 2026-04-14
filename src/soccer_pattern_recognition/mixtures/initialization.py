@@ -1,15 +1,15 @@
 """Initialization methods for MixtureModel objects."""
 
 from __future__ import annotations
-from typing import TYPE_CHECKING, TypeAlias
+from typing import TYPE_CHECKING
 
 import numpy as np
 from sklearn.cluster import KMeans, kmeans_plusplus
 
+from ..core.types import Array
+
 if TYPE_CHECKING:
     from ..mixtures.mixture import MixtureModel
-
-Array: TypeAlias = np.ndarray
 
 def build_initial_posteriors(model: "MixtureModel",
                               x: Array,

@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Optional, TypeAlias
+from typing import Optional
 
 import numpy as np
 
-Array: TypeAlias = np.ndarray
+from ..core.types import Array
 
 
 class Distribution(ABC):

@@ -6,15 +6,14 @@ Mixture model.
 
 from __future__ import annotations
 import numpy as np
-from typing import Optional, Sequence, Tuple, TypeAlias, Union
+from typing import Optional, Sequence, Tuple, Union
 
+from ..core.types import Array
 from ..distributions import Distribution
 from ..distributions.expfam import ExponentialFamily, MultivariateGaussian, VonMises
 from .em import e_step, c_step, m_step, fit_em
 from .initialization import initialize_model
 from scipy.special import logsumexp
-
-Array: TypeAlias = np.ndarray
 
 
 # -------------------- Mixture Model --------------------

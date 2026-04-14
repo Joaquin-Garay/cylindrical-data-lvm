@@ -3,7 +3,8 @@ Two-layer hierarchical mixture-of-mixtures model.
 """
 
 from __future__ import annotations
-from typing import Sequence
+from typing import Sequence, Optional
+from ..core.types import Array
 
 import numpy as np
 
@@ -78,8 +79,8 @@ class TwoLayerMoM:
 
 
     def l1_responsibilities(self,
-            layer1_data: np.ndarray,
-            layer2_data: np.ndarray,):
+            layer1_data: Array,
+            layer2_data: Array,):
         """
         Compute first-layer posterior responsibilities.
 
@@ -93,14 +94,14 @@ class TwoLayerMoM:
 
         Parameters
         ----------
-        layer1_data : np.ndarray, shape (n_obs, d_layer1)
+        layer1_data : Array, shape (n_obs, d_layer1)
             First-layer observations.
-        layer2_data : np.ndarray, shape (n_obs, d_layer2)
+        layer2_data : Array, shape (n_obs, d_layer2)
             Second-layer observations aligned with ``layer1_data``.
 
         Returns
         -------
-        np.ndarray, shape (n_obs, n_layer1_components)
+        Array, shape (n_obs, n_layer1_components)
             Posterior matrix where entry ``[n, i]`` equals
             ``p(z1=i | x1_n, x2_n)``.
 
@@ -133,7 +134,7 @@ class TwoLayerMoM:
 
         return posterior
 
-    def l2_responsibilities(self, layer2_data: np.ndarray):
+    def l2_responsibilities(self, layer2_data: Array):
         """
         Compute second-layer conditional responsibilities for each layer-1 state.
 
@@ -144,12 +145,12 @@ class TwoLayerMoM:
 
         Parameters
         ----------
-        layer2_data : np.ndarray, shape (n_obs, d_layer2)
+        layer2_data : Array, shape (n_obs, d_layer2)
             Second-layer observations.
 
         Returns
         -------
-        np.ndarray, shape (n_obs, K, K2_max)
+        Array, shape (n_obs, K, K2_max)
             Tensor of conditional posteriors where ``K`` is the number of
             first-layer components and ``K2_max`` is the maximum number of
             second-layer components across layer-2 mixtures.
@@ -193,8 +194,8 @@ class TwoLayerMoM:
         return posterior
 
     def fit(self,
-            layer1_data: np.ndarray,
-            layer2_data: np.ndarray,
+            layer1_data: Array,
+            layer2_data: Array,
             tol: float = 1e-4,
             max_iter: int = 1000,
             verbose: bool = False,
@@ -321,20 +322,23 @@ class TwoLayerMoM:
         self.logger_ = logger
         return n_iter
 
-    def log_pdf(self, layer1_data: np.ndarray, layer2_data: np.ndarray) -> np.ndarray:
+    def sample(self, n: int, rng: Optional[np.random.RandomState] = None) -> Array:
+        pass
+
+    def log_pdf(self, layer1_data: Array, layer2_data: Array) -> Array:
         """
         Compute log-likelihood per observation under the two-layer model.
 
         Parameters
         ----------
-        layer1_data : np.ndarray, shape (n_obs, d_layer1)
+        layer1_data : Array, shape (n_obs, d_layer1)
             First-layer observations.
-        layer2_data : np.ndarray, shape (n_obs, d_layer2)
+        layer2_data : Array, shape (n_obs, d_layer2)
             Second-layer observations.
 
         Returns
         -------
-        np.ndarray, shape (n_obs,)
+        Array, shape (n_obs,)
             Log-density for each observation.
         """
         layer1_pdf = self.layer1_mixture.get_posteriors(layer1_data) + _EPS  # (N,K)
@@ -344,13 +348,13 @@ class TwoLayerMoM:
         layer2_log_pdf = np.concatenate(layer2_log_pdf_array, axis=1)  # (N,K)
         return logsumexp(np.log(layer1_pdf) + layer2_log_pdf, axis=1)  # (N,)
 
-    def pdf(self, layer1_data: np.ndarray, layer2_data: np.ndarray) -> np.ndarray:
+    def pdf(self, layer1_data: Array, layer2_data: Array) -> Array:
         """
         Compute density per observation under the two-layer model.
 
         Returns
         -------
-        np.ndarray, shape (n_obs,)
+        Array, shape (n_obs,)
             Density values for each observation.
         """
         return np.exp(self.log_pdf(layer1_data, layer2_data))

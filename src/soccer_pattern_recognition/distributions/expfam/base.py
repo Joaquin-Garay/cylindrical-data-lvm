@@ -7,7 +7,8 @@ from typing import Any, Optional, Tuple
 
 import numpy as np
 
-from ..base import Array, Distribution
+from ...core.types import Array
+from ..base import Distribution
 
 
 class ExponentialFamily(Distribution, ABC):

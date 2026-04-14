@@ -11,8 +11,7 @@ import numpy as np
 from sklearn.cluster import KMeans
 from sklearn.utils import check_random_state
 
-
-Array = np.ndarray
+from ..core.types import Array
 
 from .base_emission import BaseEmission
 from .base import EmissionHMM

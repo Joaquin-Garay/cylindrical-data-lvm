@@ -6,10 +6,9 @@ from typing import Any
 
 import numpy as np
 
+from ..core.types import Array
 from .base import EmissionHMM
 from .emissions import GaussianEmission
-
-Array = np.ndarray
 
 
 class GaussianHMM(EmissionHMM):

@@ -8,7 +8,7 @@ import numpy as np
 from scipy.special import i0e, i1e
 from scipy.optimize import minimize
 
-from ..base import Array
+from ...core.types import Array
 from .base import ExponentialFamily
 
 
