@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Callable, Optional, Sequence
 import numpy as np
 
 if TYPE_CHECKING:
+    from ..mixtures.mixture import MixtureModel
     from ..hierarchical import TwoLayerMoM
 
 
@@ -145,6 +146,132 @@ def calibrate_mom_by_bic_grid_search(
                         raise
 
                 results.append(rec)
+
+    if best_model is None or best_config is None:
+        raise RuntimeError("All grid-search runs failed. Set fail_fast=True to surface the first error.")
+
+    results_sorted = sorted(results, key=lambda row: (not row["success"], row["bic"]))
+    return {
+        "best_model": best_model,
+        "best_bic": float(best_bic),
+        "best_config": best_config,
+        "results": results_sorted,
+    }
+
+
+def calibrate_mixture_by_bic_grid_search(
+    x,
+    *,
+    n_components_grid: Sequence[int] = (2, 3, 4),
+    n_restarts: int = 2,
+    init: str = "k-means++",
+    model_builder: Optional[
+        Callable[[int, str, np.random.RandomState], "MixtureModel"]
+    ] = None,
+    tol: float = 1e-4,
+    max_iter: int = 300,
+    m_step_case: str = "classic",
+    c_step_bool: bool = False,
+    verbose: bool = False,
+    random_state: Optional[int] = 42,
+    fail_fast: bool = False,
+) -> dict[str, Any]:
+    """
+    Run a small grid-search calibration for a MixtureModel using BIC as criterion.
+
+    Lower BIC is better. The function fits one model per grid point and restart,
+    then returns the best fitted model and metadata.
+
+    Notes
+    -----
+    - For non-Gaussian/custom component families, pass ``model_builder``.
+    - ``model_builder`` must return a fresh MixtureModel for each call.
+    """
+    x = np.asarray(x, dtype=float)
+    if x.ndim not in {1, 2}:
+        raise ValueError("x must be a 1D or 2D array.")
+    if x.shape[0] < 1:
+        raise ValueError("x must contain at least one sample.")
+    if not isinstance(n_restarts, (int, np.integer)) or int(n_restarts) < 1:
+        raise ValueError("n_restarts must be an integer >= 1.")
+    n_restarts = int(n_restarts)
+
+    n_candidates = _validate_component_grid("n_components_grid", n_components_grid)
+
+    if model_builder is None:
+        from ..distributions import MultivariateGaussian, UnivariateGaussian
+        from ..mixtures.mixture import MixtureModel
+
+        def default_builder(
+            n_components: int,
+            init_method: str,
+            rng: np.random.RandomState,
+        ) -> MixtureModel:
+            if x.ndim == 1:
+                components = [UnivariateGaussian() for _ in range(n_components)]
+            else:
+                components = [MultivariateGaussian(x.shape[1]) for _ in range(n_components)]
+            return MixtureModel(components=components, init=init_method, rng=rng)
+
+        builder = default_builder
+    else:
+        builder = model_builder
+
+    if not callable(builder):
+        raise TypeError("model_builder must be callable.")
+
+    master_rng = np.random.RandomState(random_state)
+    results: list[dict[str, Any]] = []
+
+    best_bic = np.inf
+    best_model: Optional["MixtureModel"] = None
+    best_config: Optional[dict[str, Any]] = None
+
+    for n_components in n_candidates:
+        for restart in range(n_restarts):
+            seed = int(master_rng.randint(np.iinfo(np.int32).max))
+            run_rng = np.random.RandomState(seed)
+            rec: dict[str, Any] = {
+                "n_components": n_components,
+                "restart": restart,
+                "seed": seed,
+            }
+
+            try:
+                model = builder(n_components, init, run_rng)
+                if model.n_components != n_components:
+                    raise ValueError(
+                        "model_builder returned a model with inconsistent n_components: "
+                        f"expected {n_components}, got {model.n_components}."
+                    )
+
+                model.fit(
+                    x,
+                    tol=tol,
+                    max_iter=max_iter,
+                    verbose=verbose,
+                    m_step_case=m_step_case,
+                    c_step_bool=c_step_bool,
+                )
+                bic = float(model.bic_score(x))
+                n_iter = int(model.logger[1]) if isinstance(model.logger, tuple) else None
+                rec.update({"success": True, "bic": bic, "n_iter": n_iter})
+
+                if bic < best_bic:
+                    best_bic = bic
+                    best_model = model
+                    best_config = {
+                        "n_components": n_components,
+                        "restart": restart,
+                        "seed": seed,
+                        "n_iter": n_iter,
+                    }
+            except Exception as exc:  # pragma: no cover - kept for robust search.
+                rec.update({"success": False, "bic": np.inf, "n_iter": None, "error": repr(exc)})
+                if fail_fast:
+                    raise
+
+            results.append(rec)
 
     if best_model is None or best_config is None:
         raise RuntimeError("All grid-search runs failed. Set fail_fast=True to surface the first error.")
