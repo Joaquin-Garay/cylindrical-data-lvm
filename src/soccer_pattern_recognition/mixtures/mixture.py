@@ -11,6 +11,7 @@ from typing import Optional, Sequence, Tuple, Union
 from ..core.types import Array
 from ..distributions import Distribution
 from ..distributions.expfam import ExponentialFamily, MultivariateGaussian, VonMises
+from ..metrics.model_selection import _num_free_params_for_component
 from .em import e_step, c_step, m_step, fit_em
 from .initialization import initialize_model
 from scipy.special import logsumexp
@@ -53,6 +54,8 @@ class MixtureModel(Distribution):
         else:
             self._weights = None
             self._is_initialized = False
+
+        self.logger = None
 
     def _initialize(self,
                     x: Array,
@@ -253,25 +256,51 @@ class MixtureModel(Distribution):
     def fit(self,
             x: Array,
             sample_weight: Sequence[float] = None,
+            *,
             tol: float = 1e-4,
             max_iter: int = 1000,
             verbose: bool = False,
             m_step_case: str = "classic",
             c_step_bool: bool = False,
-            ) -> Tuple[Sequence[float], int]:
+            ) -> None:
         """
         Perform the Expectation-Maximization algorithm to fit a mixture model.
         It stops as soon as the absolute difference between two iterations is below the tolerance.
         """
         x = np.asarray(x, dtype=float)
 
-        return fit_em(self, x, sample_weight,
+        if not isinstance(verbose, (bool, np.bool_)):
+            raise TypeError("verbose must be a boolean.")
+        if not isinstance(c_step_bool, (bool, np.bool_)):
+            raise TypeError("c_step_bool must be a boolean.")
+
+        self.logger = fit_em(self, x, sample_weight,
                       tol,
                       max_iter,
                       m_step_case,
                       c_step_bool,
                       verbose)
 
+    def n_free_params(self):
+        """
+        Return the total number of free parameters in the model.
+        """
+        n_params = self.n_components - 1  # prior parameters
+        n_params += _num_free_params_for_component(self.components[0]) * self.n_components
+        return n_params
+
+    def bic_score(self, x: Array) -> float:
+        """
+        Compute Bayesian Information Criterion (BIC).
+
+        Lower values indicate a better trade-off between fit and complexity.
+        """
+        x = np.asarray(x, dtype=float)
+
+        n_obs = x.shape[0]
+        penalty = np.log(n_obs) * self.n_free_params()
+        ll = self.log_pdf(x).sum()
+        return penalty - 2 * ll
 
     # ---- Display ----
     @staticmethod
@@ -307,3 +336,4 @@ class MixtureModel(Distribution):
         """Average log-likelihood per sample (sklearn-style)."""
         x = np.asarray(x, dtype=float)
         return float(self.log_pdf(x).mean())
+

@@ -12,7 +12,15 @@ from .expfam import MultivariateGaussian, VonMisesFisher
 class Cylindrical(Distribution):
     """Cylindrical model with conditional Gaussian and directional vMF parts."""
 
-    def __init__(self, d_gauss: int, d_vmf: int):
+    def __init__(self, d_gauss: int,
+                 d_vmf: int,
+                 *,
+                 mu_gauss: Optional[Array] = None,
+                 cross_cov: Optional[Array] = None,
+                 cond_cov: Optional[Array] = None,
+                 mu_vmf: Optional[Array] = None,
+                 kappa: Optional[float] = None):
+
         if not isinstance(d_gauss, (int, np.integer)) or int(d_gauss) < 1:
             raise ValueError("d_gauss must be an integer >= 1.")
         if not isinstance(d_vmf, (int, np.integer)) or int(d_vmf) < 2:
@@ -21,16 +29,31 @@ class Cylindrical(Distribution):
         self._d_gauss = int(d_gauss)
         self._d_vmf = int(d_vmf)
 
-        self._mu_gauss = np.zeros(self._d_gauss, dtype=float)
-        self._cross_cov = np.ones((self._d_gauss, self._d_vmf), dtype=float)
-        self._cond_cov = np.eye(self._d_gauss, dtype=float)
+        self._mu_gauss = (
+            np.zeros(self._d_gauss, dtype=float)
+            if mu_gauss is None
+            else np.asarray(mu_gauss, dtype=float)
+        )
+        self._cross_cov = (
+            np.ones((self._d_gauss, self._d_vmf), dtype=float)
+            if cross_cov is None
+            else np.asarray(cross_cov, dtype=float)
+        )
+        self._cond_cov = (
+            np.eye(self._d_gauss, dtype=float)
+            if cond_cov is None
+            else np.asarray(cond_cov, dtype=float)
+        )
+
+        vmf_mu = None if mu_vmf is None else np.asarray(mu_vmf, dtype=float)
+        vmf_kappa = 1.0 if kappa is None else float(kappa)
+        self._vmf = VonMisesFisher(self._d_vmf, mu=vmf_mu, kappa=vmf_kappa)
 
         self._cond_gauss = MultivariateGaussian(
             self._d_gauss,
             mean=np.zeros(self._d_gauss, dtype=float),
             covariance=self._cond_cov.copy(),
         )
-        self._vmf = VonMisesFisher(self._d_vmf)
 
         self._validate_params()
         self._cache()
@@ -200,12 +223,15 @@ class Cylindrical(Distribution):
     def fit(
         self,
         x_gauss: Array,
-        x_vmf: Array,
+        x_vmf: Optional[Array] = None,
         sample_weight: Optional[Array] = None,
+        case: str = None,
         ridge: float = 1e-6,
     ) -> "Cylindrical":
         if not np.isfinite(ridge) or ridge < 0.0:
             raise ValueError("ridge must be a finite nonnegative scalar.")
+        if x_vmf is None:
+            x_gauss, x_vmf = x_gauss[:,:self._d_gauss], x_gauss[:,self._d_gauss:]
 
         x_gauss, x_vmf = self._validate_blocks(x_gauss, x_vmf)
         n_obs = x_gauss.shape[0]
@@ -246,12 +272,10 @@ class Cylindrical(Distribution):
         cond_cov = np.array2string(self._cond_cov, precision=4, separator=" ", suppress_small=True)
         vmf_mu = np.array2string(self._vmf.mu, precision=4, separator=" ", suppress_small=True)
         return (
-            "Cylindrical(\n"
-            f"  {self._d_gauss}, {self._d_vmf}):\n"
-            f"  mu_gauss={mu_gauss}\n"
-            f"  cross_cov={cross_cov}\n"
-            f"  cond_cov={cond_cov}\n"
-            f"  vmf_mu={vmf_mu}\n"
-            f"  vmf_kappa={self._vmf.kappa:.6g}\n"
-            ")"
+            f"Cylindrical({self._d_gauss}, {self._d_vmf}):\n"
+            f" mu_gauss={mu_gauss}\n"
+            f" cross_cov={cross_cov}\n"
+            f" cond_cov={cond_cov}\n"
+            f" vmf_mu={vmf_mu}\n"
+            f" vmf_kappa={self._vmf.kappa:.6g}"
         )

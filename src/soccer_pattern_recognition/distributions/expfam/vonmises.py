@@ -18,9 +18,14 @@ class VonMises(ExponentialFamily):
     x must be in sufficient statistic form: [cos x, sin x].
     """
 
-    def __init__(self, loc: float = 0.0, kappa: float = 1.0):
-        self._loc = float(loc)
-        self._kappa = float(kappa)
+    def __init__(self,
+                 *,
+                 loc: Optional[float] = None,
+                 kappa: Optional[float] = None):
+
+        self._loc = 0.0 if loc is None else float(loc)
+        self._kappa = 1.0 if kappa is None else float(kappa)
+
         self._natural_param: Optional[Array] = None
         self._dual_param: Optional[Array] = None
         self._A: Optional[float] = None
