@@ -325,11 +325,35 @@ def mom_builder_3d(n_layer1_components, n_layer2_components, init_layer1, init_l
     ]
     return spr.TwoLayerMoM(layer1_mixture=layer1_mixture, layer2_mixtures=layer2_mixtures)
 
+def mom_iso_builder_3d(n_layer1_components, n_layer2_components, init_layer1, init_layer2, rng):
+    layer1_mixture = spr.MixtureModel(
+        [spr.MultivariateGaussian(D_GAUSS) for _ in range(n_layer1_components)],
+        init=init_layer1,
+        rng=rng,
+    )
+    layer2_mixtures = [
+        spr.MixtureModel(
+            [spr.VonMisesFisher(D_VMF) for _ in range(n_layer2_components)],
+            init=init_layer2,
+            rng=rng,
+        )
+        for _ in range(n_layer1_components)
+    ]
+    return spr.IsolatedTwoLayerMoM(layer1_mixture=layer1_mixture, layer2_mixtures=layer2_mixtures)
+
 
 def cylindrical_mixture_builder_3d(n_components, init, rng):
     """Builder for 3D cylindrical mixtures used by BIC grid-search calibration."""
     return spr.MixtureModel(
         [spr.Cylindrical(d_gauss=D_GAUSS, d_vmf=D_VMF) for _ in range(n_components)],
+        init=init,
+        rng=rng,
+    )
+
+def ind_cylindrical_mixture_builder_3d(n_components, init, rng):
+    """Builder for 3D cylindrical mixtures used by BIC grid-search calibration."""
+    return spr.MixtureModel(
+        [spr.IndCylindrical(d_gauss=D_GAUSS, d_vmf=D_VMF) for _ in range(n_components)],
         init=init,
         rng=rng,
     )
