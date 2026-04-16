@@ -15,8 +15,8 @@ __all__ = [
     "TwoLayerMoM",
     "IsolatedTwoLayerMoM",
     "SoccerTwoLayerMoM",
-    "calibrate_mom_by_bic_grid_search",
-    "calibrate_mixture_by_bic_grid_search",
+    "calibrate_mom_by_cv_grid_search",
+    "calibrate_mixture_by_cv_grid_search",
     "consolidate",
     "add_noise",
     "prepare_data",
@@ -79,17 +79,17 @@ def __getattr__(name: str) -> Any:
         globals()[name] = SoccerTwoLayerMoM
         return SoccerTwoLayerMoM
 
-    if name == "calibrate_mom_by_bic_grid_search":
-        from .metrics import calibrate_mom_by_bic_grid_search
+    if name == "calibrate_mom_by_cv_grid_search":
+        from .metrics import calibrate_mom_by_cv_grid_search
 
-        globals()[name] = calibrate_mom_by_bic_grid_search
-        return calibrate_mom_by_bic_grid_search
+        globals()[name] = calibrate_mom_by_cv_grid_search
+        return calibrate_mom_by_cv_grid_search
 
-    if name == "calibrate_mixture_by_bic_grid_search":
-        from .metrics import calibrate_mixture_by_bic_grid_search
+    if name == "calibrate_mixture_by_cv_grid_search":
+        from .metrics import calibrate_mixture_by_cv_grid_search
 
-        globals()[name] = calibrate_mixture_by_bic_grid_search
-        return calibrate_mixture_by_bic_grid_search
+        globals()[name] = calibrate_mixture_by_cv_grid_search
+        return calibrate_mixture_by_cv_grid_search
 
     if name in {"consolidate", "add_noise", "prepare_data", "save_spadl_h5"}:
         from .utils import add_noise, consolidate, prepare_data, save_spadl_h5
