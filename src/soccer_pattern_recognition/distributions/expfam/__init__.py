@@ -1,7 +1,7 @@
 """Exponential-family distributions."""
 
 from .base import ExponentialFamily
-from .custom_gauss_vonmises import IndGaussVM
+from .independent_cylindrical import IndCylindrical
 from .gaussian import MultivariateGaussian, UnivariateGaussian
 from .vonmises import VonMises
 from .vmf import VonMisesFisher
@@ -12,5 +12,5 @@ __all__ = [
     "MultivariateGaussian",
     "VonMises",
     "VonMisesFisher",
-    "IndGaussVM",
+    "IndCylindrical",
 ]

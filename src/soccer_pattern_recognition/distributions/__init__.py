@@ -5,7 +5,7 @@ from .cylindrical import Cylindrical
 from .discrete import Categorical
 from .expfam import (
     ExponentialFamily,
-    IndGaussVM,
+    IndCylindrical,
     MultivariateGaussian,
     UnivariateGaussian,
     VonMises,
@@ -21,5 +21,5 @@ __all__ = [
     "MultivariateGaussian",
     "VonMises",
     "VonMisesFisher",
-    "IndGaussVM",
+    "IndCylindrical",
 ]

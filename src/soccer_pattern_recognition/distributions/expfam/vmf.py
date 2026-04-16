@@ -22,7 +22,9 @@ class VonMisesFisher(ExponentialFamily):
     where ||mu|| = 1 and x lies on the unit hypersphere.
     """
 
-    def __init__(self, d: int, *, mu: Optional[Array] = None, kappa: float = 1.0):
+    def __init__(self, d: int, *,
+                 mu: Optional[Array] = None,
+                 kappa: Optional[float] = None):
         super().__init__()
         if not isinstance(d, (int, np.integer)) or int(d) < 2:
             raise ValueError("d must be an integer >= 2.")
@@ -32,7 +34,10 @@ class VonMisesFisher(ExponentialFamily):
             self._mu[0] = 1.0
         else:
             self._mu = np.asarray(mu, dtype=float)
-        self._kappa = float(kappa)
+        if kappa is None:
+            self._kappa = 1.0
+        else:
+            self._kappa = float(kappa)
         self._natural_param: Optional[Array] = None
         self._dual_param: Optional[Array] = None
         self._A: Optional[float] = None

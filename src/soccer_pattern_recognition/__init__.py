@@ -37,7 +37,7 @@ __all__ = [
     "VonMises",
     "VonMisesFisher",
     "Cylindrical",
-    "IndGaussVM",
+    "IndCylindrical",
 ]
 
 
@@ -146,14 +146,14 @@ def __getattr__(name: str) -> Any:
         "VonMises",
         "VonMisesFisher",
         "Cylindrical",
-        "IndGaussVM",
+        "IndCylindrical",
     }:
         from .distributions import (
             Categorical,
             Cylindrical,
             Distribution,
             ExponentialFamily,
-            IndGaussVM,
+            IndCylindrical,
             MultivariateGaussian,
             UnivariateGaussian,
             VonMises,
@@ -169,7 +169,7 @@ def __getattr__(name: str) -> Any:
             "VonMises": VonMises,
             "VonMisesFisher": VonMisesFisher,
             "Cylindrical": Cylindrical,
-            "IndGaussVM": IndGaussVM,
+            "IndCylindrical": IndCylindrical,
         }
         globals().update(_symbols)
         return _symbols[name]
