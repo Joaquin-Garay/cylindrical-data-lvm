@@ -46,23 +46,13 @@ class ExponentialFamily(Distribution, ABC):
         """
         raise NotImplementedError
 
-    @staticmethod
-    def _normalize_weights(weights: Array) -> Array:
+    @classmethod
+    def _normalize_weights(cls, weights: Array) -> Array:
         """Validate and normalize weights to sum to one."""
         w = np.asarray(weights, dtype=float)
-        if w.ndim != 1:
-            raise ValueError("sample_weight must be a 1D array with shape (n,).")
-        if w.size == 0:
-            raise ValueError("sample_weight must not be empty.")
-        if not np.all(np.isfinite(w)):
-            raise ValueError("sample_weight contains non-finite values.")
-        if np.any(w < 0):
-            raise ValueError("sample_weight must be nonnegative.")
-
-        total = float(w.sum())
-        if total <= 0.0:
-            raise ValueError("sample_weight must sum to a positive value.")
-        return w / total
+        if w.ndim != 1 or w.size == 0:
+            raise ValueError("sample_weight must be a non-empty 1D array with shape (n,).")
+        return cls._normalize_sample_weight(w, w.shape[0])
 
     @staticmethod
     def _validate_case(case: str) -> None:
@@ -82,13 +72,5 @@ class ExponentialFamily(Distribution, ABC):
         """
         x = self._validate_input_samples(x)
         n_samples = int(x.shape[0])
-        if weights is None:
-            weights = np.full(n_samples, 1.0 / n_samples, dtype=float)
-        else:
-            weights = self._normalize_weights(weights)
-            if weights.shape[0] != n_samples:
-                raise ValueError(
-                    "sample_weight length mismatch: expected "
-                    f"{n_samples}, got {weights.shape[0]}."
-                )
+        weights = self._normalize_sample_weight(weights, n_samples)
         return x, weights

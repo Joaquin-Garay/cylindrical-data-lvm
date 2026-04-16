@@ -1,4 +1,4 @@
-"""Univariate and multivariate Gaussian exponential-family distributions."""
+"""Multivariate Gaussian exponential-family distribution."""
 
 from __future__ import annotations
 
@@ -11,136 +11,6 @@ from ...core.types import Array
 from .base import ExponentialFamily
 
 
-class UnivariateGaussian(ExponentialFamily):
-    """
-    N(mean, variance) in natural form:
-        theta = ( -mu/sigma^2, -1/(2*sigma^2) )
-    dual / mean-value form:
-        eta =   ( mu , mu^2 + sigma^2 )
-    """
-
-    def __init__(self, mean: float = 0.0, variance: float = 1.0):
-        self._mean = float(mean)
-        self._variance = float(variance)
-        self._natural_param: Optional[Array] = None
-        self._dual_param: Optional[Array] = None
-        self._validate()
-        self._update_params()
-
-    def _validate(self) -> None:
-        if self._variance <= 0:
-            raise ValueError("variance must be positive.")
-        if self._natural_param is not None and self._natural_param[1] >= 0:
-            raise ValueError("Second natural parameter must be negative.")
-        if self._dual_param is not None and self._dual_param[1] <= self._dual_param[0] ** 2:
-            raise ValueError("eta2 - eta1^2 must be positive.")
-
-    def _update_params(self) -> None:
-        self._natural_param = np.array([
-            -self._mean / self._variance,
-            -1.0 / (2.0 * self._variance)
-        ])
-        self._dual_param = np.array([
-            self._mean,
-            self._mean ** 2 + self._variance
-        ])
-
-    # ---- Getters and Setters ----
-    @property
-    def params(self) -> Tuple[float, float]:
-        return self._mean, self._variance
-
-    @params.setter
-    def params(self, value: Tuple[float, float]):
-        self._mean, self._variance = value
-        self._validate()
-        self._update_params()
-
-    @property
-    def natural_param(self):
-        return self._natural_param.copy()
-
-    @natural_param.setter
-    def natural_param(self, theta: Array):
-        theta = np.asarray(theta, dtype=float)
-        if theta.shape != (2,):
-            raise ValueError("natural_param must be a length-2 vector.")
-        self._natural_param = theta
-        self._mean = -0.5 * theta[0] / theta[1]
-        self._variance = -0.5 / theta[1]
-        self._validate()
-        self._update_params()
-
-    @property
-    def dual_param(self):
-        return self._dual_param.copy()
-
-    @dual_param.setter
-    def dual_param(self, eta: Array) -> None:
-        eta = np.asarray(eta, dtype=float)
-        if eta.shape != (2,):
-            raise ValueError("dual_param must be a length-2 vector.")
-        self._dual_param = eta
-        self._mean = eta[0]
-        self._variance = eta[1] - eta[0] ** 2
-        self._validate()
-        self._update_params()
-
-    @staticmethod
-    def from_dual_to_ordinary(eta: Array) -> Tuple[float, float]:
-        return float(eta[0]), float(eta[1] - eta[0] ** 2)
-
-    # ---- densities ----
-    def log_pdf(self, x: Array) -> Array:
-        x = self._validate_input_samples(x)
-        if x.ndim == 2:
-            if x.shape[1] != 1:
-                raise ValueError("UnivariateGaussian expects x with shape (n,) or (n, 1).")
-            x = x[:, 0]
-        return -0.5 * ((x - self._mean) ** 2) / self._variance - 0.5 * np.log(2 * np.pi * self._variance)
-
-    def sample(self, n: int, rng: Optional[np.random.RandomState] = None) -> Array:
-        self._validate_n_samples(n)
-        rng = np.random.RandomState() if rng is None else rng
-        return rng.normal(loc=self._mean, scale=np.sqrt(self._variance), size=n)
-
-    # pdf inherited from base
-
-    # ---- Calibration ----
-    def fit(self,
-            x: Array,
-            sample_weight: Optional[Array] = None,
-            case: str = "classic",
-            ) -> "UnivariateGaussian":
-
-        self._validate_case(case)
-        x, sample_weight = self._input_process(x, sample_weight)
-        if x.ndim == 2:
-            if x.shape[1] != 1:
-                raise ValueError("UnivariateGaussian.fit expects x with shape (n,) or (n, 1).")
-            x = x[:, 0]
-        match case:
-            case "bregman":
-                # compute dual/expectation parameters using sufficient statistics.
-                eta = np.array([np.average(x, weights=sample_weight),
-                                np.average(x ** 2, weights=sample_weight)])
-                self.dual_param = eta
-            case _:
-                mu = np.average(x, weights=sample_weight)
-                diff = x - mu
-                variance = np.inner(sample_weight * diff, diff)
-
-                self._mean = mu
-                self._variance = variance
-                self._validate()
-                self._update_params()
-        return self
-
-    def __repr__(self) -> str:
-        return f"UnivariateGaussian(mean={self._mean:.3f}, variance={self._variance:.3f})"
-
-
-# -------------------- Multivariate Gaussian --------------------
 class MultivariateGaussian(ExponentialFamily):
     """
     Multivariate Gaussian N(mu, sigma), with mu = mean vector and sigma = covariance matrix
@@ -151,29 +21,20 @@ class MultivariateGaussian(ExponentialFamily):
                  mean: Optional[Array] = None,
                  covariance: Optional[Array] = None):
         super().__init__()
-        if not isinstance(d, (int, np.integer)) or int(d) < 1:
-            raise ValueError("d must be an integer >= 1.")
-        self._d = int(d)
+        self._d = self._validate_positive_int(d, name="d", minimum=1)
         self._mean = np.zeros(self._d, dtype=float) if mean is None else np.asarray(mean, dtype=float)
         self._covariance = np.eye(self._d, dtype=float) if covariance is None else np.asarray(covariance, dtype=float)
         self._validate()
         self._cache()
 
     def _validate(self):
-        if self._mean.ndim != 1 or self._mean.shape[0] != self._d:
-            raise ValueError(f"Mean must have shape ({self._d},).")
-        if self._covariance.ndim != 2 or self._covariance.shape != (self._d, self._d):
-            raise ValueError(f"Covariance must have shape ({self._d}, {self._d}).")
-        if not np.all(np.isfinite(self._mean)):
-            raise ValueError("Mean contains non-finite values.")
-        if not np.all(np.isfinite(self._covariance)):
-            raise ValueError("Covariance contains non-finite values.")
-        if self._covariance.shape[0] != self._covariance.shape[1]:
-            raise ValueError("Covariance matrix must be square.")
-        if self._mean.shape[0] != self._covariance.shape[0]:
-            raise ValueError("Mean and covariance shapes mismatch.")
-        if not np.allclose(self._covariance, self._covariance.T):
-            raise ValueError("Covariance must be symmetric.")
+        self._mean = self._validate_vector(self._mean, size=self._d, name="mean")
+        self._covariance = self._validate_matrix(
+            self._covariance,
+            shape=(self._d, self._d),
+            name="covariance",
+            symmetric=True,
+        )
         # Positive definiteness checked in _cache via Cholesky
 
     def _cache(self):
@@ -271,11 +132,7 @@ class MultivariateGaussian(ExponentialFamily):
 
     # ----- densities -----
     def log_pdf(self, x: Array) -> Array:
-        x = self._validate_input_samples(x)
-        if x.ndim != 2:
-            raise ValueError("MultivariateGaussian expects x with shape (n, d).")
-        if x.shape[1] != self.d:
-            raise ValueError(f"x has {x.shape[1]} features, expected {self.d}.")
+        x = self._validate_input_matrix(x, n_features=self.d, name="x")
         diff = x - self._mean  # (d,) or (n,d)
         # Solve L y = diff^T => y = L^{-1} diff^T
         y = np.linalg.solve(self._chol, diff.T)  # (d,N)
@@ -286,7 +143,7 @@ class MultivariateGaussian(ExponentialFamily):
 
     def sample(self, n: int, rng: Optional[np.random.RandomState] = None) -> Array:
         self._validate_n_samples(n)
-        rng = np.random.RandomState() if rng is None else rng
+        rng = self._resolve_rng(rng)
         return rng.multivariate_normal(self._mean, self._covariance, size=n)
 
     # ----- Calibration -----
@@ -297,10 +154,7 @@ class MultivariateGaussian(ExponentialFamily):
             ) -> "MultivariateGaussian":
         self._validate_case(case)
         x, sample_weight = self._input_process(x, sample_weight)
-        if x.ndim != 2:
-            raise ValueError("MultivariateGaussian.fit expects x with shape (n, d).")
-        if x.shape[1] != self.d:
-            raise ValueError(f"x has {x.shape[1]} features, expected {self.d}.")
+        x = self._validate_input_matrix(x, n_features=self.d, name="x")
         match case:
             case "bregman":
                 # Compute MLE via minimization of Bregman divergence

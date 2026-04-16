@@ -8,7 +8,7 @@ import numpy as np
 
 from ...core.types import Array
 from .base import ExponentialFamily
-from .gaussian import MultivariateGaussian
+from .multi_gaussian import MultivariateGaussian
 from .vmf import VonMisesFisher
 
 # ----- Independent Gaussian-vonMises distribution -----
@@ -26,17 +26,12 @@ class IndCylindrical(ExponentialFamily):
                  mu_vmf: Optional[Array] = None,
                  kappa: Optional[float] = None):
 
-        if not isinstance(d_gauss, (int, np.integer)) or int(d_gauss) < 1:
-            raise ValueError("d_gauss must be an integer >= 1.")
-        if not isinstance(d_vmf, (int, np.integer)) or int(d_vmf) < 2:
-            raise ValueError("d_vmf must be an integer >= 2.")
-
-        self._d_gauss = int(d_gauss)
-        self._d_vmf = int(d_vmf)
-        self._vmf = VonMisesFisher(d_vmf,
+        self._d_gauss = self._validate_positive_int(d_gauss, name="d_gauss", minimum=1)
+        self._d_vmf = self._validate_positive_int(d_vmf, name="d_vmf", minimum=2)
+        self._vmf = VonMisesFisher(self._d_vmf,
                                    mu=mu_vmf,
                                    kappa=kappa)
-        self._gaussian = MultivariateGaussian(d_gauss,
+        self._gaussian = MultivariateGaussian(self._d_gauss,
                                               mean=mu_gauss,
                                               covariance=cov_gauss)
         self._validate_components()
@@ -51,20 +46,8 @@ class IndCylindrical(ExponentialFamily):
                 f"VonMisesFisher dimension mismatch: expected {self._d_vmf}, got {self._vmf.d}."
             )
 
-    @staticmethod
-    def _validate_rng(rng: Optional[np.random.RandomState]) -> np.random.RandomState:
-        if rng is None:
-            return np.random.RandomState()
-        if not isinstance(rng, np.random.RandomState):
-            raise TypeError("rng must be None or np.random.RandomState.")
-        return rng
-
     def _split_input(self, x: Array) -> Tuple[Array, Array]:
-        x = np.asarray(x, dtype=float)
-        if x.ndim != 2 or x.shape[1] != self.d_total:
-            raise ValueError(
-                f"IndCylindrical expects x with shape (n, {self.d_total})."
-            )
+        x = self._validate_input_matrix(x, n_features=self.d_total, name="x")
         return x[:, :self._d_gauss], x[:, self._d_gauss:]
 
     @property
@@ -104,13 +87,12 @@ class IndCylindrical(ExponentialFamily):
         return self._gaussian.dual_param, self._vmf.dual_param
 
     def log_pdf(self, x: Array) -> Array:
-        x = self._validate_input_samples(x)
         x_gauss, x_vmf = self._split_input(x)
         return self._gaussian.log_pdf(x_gauss) + self._vmf.log_pdf(x_vmf)
 
     def sample(self, n: int, rng: Optional[np.random.RandomState] = None) -> Array:
         self._validate_n_samples(n)
-        rng = self._validate_rng(rng)
+        rng = self._resolve_rng(rng)
         x_gauss = np.asarray(self._gaussian.sample(n, rng), dtype=float)
         x_vmf = np.asarray(self._vmf.sample(n, rng), dtype=float)
 

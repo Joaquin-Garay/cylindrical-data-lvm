@@ -2,7 +2,8 @@
 
 from .base import ExponentialFamily
 from .independent_cylindrical import IndCylindrical
-from .gaussian import MultivariateGaussian, UnivariateGaussian
+from .multi_gaussian import MultivariateGaussian
+from .uni_gaussian import UnivariateGaussian
 from .vonmises import VonMises
 from .vmf import VonMisesFisher
 

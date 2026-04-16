@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Optional, Tuple
 
 import numpy as np
-from scipy.optimize import minimize_scalar
 from scipy.special import ive
 from scipy.stats import vonmises_fisher
 
@@ -26,9 +25,7 @@ class VonMisesFisher(ExponentialFamily):
                  mu: Optional[Array] = None,
                  kappa: Optional[float] = None):
         super().__init__()
-        if not isinstance(d, (int, np.integer)) or int(d) < 2:
-            raise ValueError("d must be an integer >= 2.")
-        self._d = int(d)
+        self._d = self._validate_positive_int(d, name="d", minimum=2)
         if mu is None:
             self._mu = np.zeros(self._d, dtype=float)
             self._mu[0] = 1.0
@@ -116,10 +113,7 @@ class VonMisesFisher(ExponentialFamily):
         return float(kappa)
 
     def _validate(self) -> None:
-        if self._mu.ndim != 1 or self._mu.size != self._d:
-            raise ValueError(f"mu must have shape ({self._d},).")
-        if not np.all(np.isfinite(self._mu)):
-            raise ValueError("mu contains non-finite values.")
+        self._mu = self._validate_vector(self._mu, size=self._d, name="mu")
 
         norm = float(np.linalg.norm(self._mu))
         if norm <= 0.0:
@@ -131,11 +125,16 @@ class VonMisesFisher(ExponentialFamily):
         if self._kappa <= 0.0:
             raise ValueError("Concentration parameter kappa must be positive.")
 
-    @staticmethod
-    def validate_unit_samples(x: Array, tol: float = 1e-6) -> None:
+    @classmethod
+    def validate_unit_samples(cls, x: Array, tol: float = 1e-6) -> Array:
+        x = cls._validate_input_samples(x)
+        if x.ndim != 2:
+            raise ValueError("x expects shape (n, d) for unit-vector validation.")
+        x = cls._validate_input_matrix(x, n_features=x.shape[1], name="x")
         norms = np.linalg.norm(x, axis=1)
         if not np.allclose(norms, 1.0, atol=tol, rtol=0.0):
             raise ValueError("All x samples must be unit vectors (||x|| = 1).")
+        return x
 
     def _log_partition(self, kappa: float) -> float:
         """
@@ -282,13 +281,12 @@ class VonMisesFisher(ExponentialFamily):
 
     # ---- densities ----
     def log_pdf(self, x: Array) -> Array:
-        x = self._validate_input_samples(x)
-        if x.ndim == 1:
-            if x.shape[0] != self._d:
-                raise ValueError(f"VonMisesFisher expects x with shape ({self._d},) or (n, {self._d}).")
-            x = x[np.newaxis, :]
-        if x.shape[1] != self._d:
-            raise ValueError(f"VonMisesFisher expects x with shape (n, {self._d}).")
+        x = self._validate_input_matrix(
+            x,
+            n_features=self._d,
+            name="x",
+            allow_single_vector=True,
+        )
         self.validate_unit_samples(x)
         return x @ self._natural_param - self._log_partition(self._kappa)
 
@@ -296,7 +294,7 @@ class VonMisesFisher(ExponentialFamily):
 
     def sample(self, n: int, rng: Optional[np.random.RandomState] = None) -> Array:
         self._validate_n_samples(n)
-        rng = np.random.RandomState() if rng is None else rng
+        rng = self._resolve_rng(rng)
         return vonmises_fisher(mu=self._mu, kappa=self._kappa).rvs(size=n, random_state=rng)
 
     # ---- Calibration ----
@@ -309,8 +307,7 @@ class VonMisesFisher(ExponentialFamily):
 
         self._validate_case(case)
         x, sample_weight = self._input_process(x, sample_weight)
-        if x.ndim != 2 or x.shape[1] != self._d:
-            raise ValueError(f"VonMisesFisher.fit expects x with shape (n, {self._d}).")
+        x = self._validate_input_matrix(x, n_features=self._d, name="x")
 
         self.validate_unit_samples(x)
         eta = np.average(x, axis=0, weights=sample_weight)

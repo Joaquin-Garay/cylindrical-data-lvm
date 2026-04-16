@@ -69,6 +69,10 @@ class VonMises(ExponentialFamily):
         return r * (2 - r ** 2) / (1 - r ** 2)
 
     def _validate(self):
+        if not np.isfinite(self._loc):
+            raise ValueError("Location parameter loc must be finite.")
+        if not np.isfinite(self._kappa):
+            raise ValueError("Concentration parameter kappa must be finite.")
         if self._kappa <= 0:
             raise ValueError("Concentration parameter kappa must be positive.")
 
@@ -113,11 +117,7 @@ class VonMises(ExponentialFamily):
 
     @natural_param.setter
     def natural_param(self, theta: Array):
-        theta = np.asarray(theta, dtype=float)
-        if theta.shape != (2,):
-            raise ValueError("natural_param must be a length-2 vector.")
-        if not np.all(np.isfinite(theta)):
-            raise ValueError("natural_param contains non-finite values.")
+        theta = self._validate_vector(theta, size=2, name="natural_param")
         self._natural_param = theta
         self._loc = np.arctan2(theta[1], theta[0])
         self._kappa = np.minimum(np.linalg.norm(theta, ord=None), self._MAX_KAPPA)
@@ -132,11 +132,7 @@ class VonMises(ExponentialFamily):
 
     @dual_param.setter
     def dual_param(self, eta: Array):
-        eta = np.asarray(eta, dtype=float)
-        if eta.shape != (2,):
-            raise ValueError("dual_param must be a length-2 vector.")
-        if not np.all(np.isfinite(eta)):
-            raise ValueError("dual_param contains non-finite values.")
+        eta = self._validate_vector(eta, size=2, name="dual_param")
         self._dual_param = eta
         self._loc = np.arctan2(eta[1], eta[0])
         self._A = np.minimum(np.linalg.norm(eta, ord=None), self._MAX_A)
@@ -181,13 +177,12 @@ class VonMises(ExponentialFamily):
 
     # ----- densities -----
     def log_pdf(self, x: Array) -> Array:
-        x = self._validate_input_samples(x)
-        if x.ndim == 1:
-            if x.shape[0] != 2:
-                raise ValueError("VonMises expects x with shape (n, 2) or a single vector (2,).")
-            x = x[np.newaxis, :]
-        if x.shape[1] != 2:
-            raise ValueError("VonMises expects x with shape (n, 2).")
+        x = self._validate_input_matrix(
+            x,
+            n_features=2,
+            name="x",
+            allow_single_vector=True,
+        )
         log_partition = np.log(2 * np.pi * i0e(self._kappa)) + self._kappa
         return x @ self._natural_param - log_partition
 
@@ -198,7 +193,7 @@ class VonMises(ExponentialFamily):
         Draw samples and return sufficient statistics [cos(theta), sin(theta)].
         """
         self._validate_n_samples(n)
-        rng = np.random.RandomState() if rng is None else rng
+        rng = self._resolve_rng(rng)
         theta = rng.vonmises(mu=self._loc, kappa=self._kappa, size=n)
         return np.column_stack((np.cos(theta), np.sin(theta)))
 
@@ -213,8 +208,7 @@ class VonMises(ExponentialFamily):
         self._validate_case(case)
 
         x, sample_weight = self._input_process(x, sample_weight)
-        if x.ndim != 2 or x.shape[1] != 2:
-            raise ValueError("VonMises.fit expects x with shape (n, 2) in sufficient-stat form.")
+        x = self._validate_input_matrix(x, n_features=2, name="x")
 
         match case:
             case "bregman":

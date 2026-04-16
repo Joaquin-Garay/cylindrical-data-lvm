@@ -21,13 +21,8 @@ class Cylindrical(Distribution):
                  mu_vmf: Optional[Array] = None,
                  kappa: Optional[float] = None):
 
-        if not isinstance(d_gauss, (int, np.integer)) or int(d_gauss) < 1:
-            raise ValueError("d_gauss must be an integer >= 1.")
-        if not isinstance(d_vmf, (int, np.integer)) or int(d_vmf) < 2:
-            raise ValueError("d_vmf must be an integer >= 2.")
-
-        self._d_gauss = int(d_gauss)
-        self._d_vmf = int(d_vmf)
+        self._d_gauss = self._validate_positive_int(d_gauss, name="d_gauss", minimum=1)
+        self._d_vmf = self._validate_positive_int(d_vmf, name="d_vmf", minimum=2)
 
         self._mu_gauss = (
             np.zeros(self._d_gauss, dtype=float)
@@ -60,21 +55,22 @@ class Cylindrical(Distribution):
 
     # ---- Validation helpers ----
     def _validate_params(self) -> None:
-        if self._mu_gauss.ndim != 1 or self._mu_gauss.shape != (self._d_gauss,):
-            raise ValueError(f"mu_gauss must have shape ({self._d_gauss},).")
-        if self._cross_cov.ndim != 2 or self._cross_cov.shape != (self._d_gauss, self._d_vmf):
-            raise ValueError(f"cross_cov must have shape ({self._d_gauss}, {self._d_vmf}).")
-        if self._cond_cov.ndim != 2 or self._cond_cov.shape != (self._d_gauss, self._d_gauss):
-            raise ValueError(f"cond_cov must have shape ({self._d_gauss}, {self._d_gauss}).")
-
-        if not np.all(np.isfinite(self._mu_gauss)):
-            raise ValueError("mu_gauss contains non-finite values.")
-        if not np.all(np.isfinite(self._cross_cov)):
-            raise ValueError("cross_cov contains non-finite values.")
-        if not np.all(np.isfinite(self._cond_cov)):
-            raise ValueError("cond_cov contains non-finite values.")
-        if not np.allclose(self._cond_cov, self._cond_cov.T):
-            raise ValueError("cond_cov must be symmetric.")
+        self._mu_gauss = self._validate_vector(
+            self._mu_gauss,
+            size=self._d_gauss,
+            name="mu_gauss",
+        )
+        self._cross_cov = self._validate_matrix(
+            self._cross_cov,
+            shape=(self._d_gauss, self._d_vmf),
+            name="cross_cov",
+        )
+        self._cond_cov = self._validate_matrix(
+            self._cond_cov,
+            shape=(self._d_gauss, self._d_gauss),
+            name="cond_cov",
+            symmetric=True,
+        )
 
     def _cache(self) -> None:
         try:
@@ -84,31 +80,11 @@ class Cylindrical(Distribution):
         self._log_det = 2 * np.sum(np.log(np.diag(self._chol)))
 
     def _validate_blocks(self, x_gauss: Array, x_vmf: Array) -> Tuple[Array, Array]:
-        x_gauss = self._validate_input_samples(x_gauss)
-        x_vmf = self._validate_input_samples(x_vmf)
-        if x_gauss.ndim != 2 or x_gauss.shape[1] != self._d_gauss:
-            raise ValueError(f"x_gauss must have shape (n, {self._d_gauss}).")
-        if x_vmf.ndim != 2 or x_vmf.shape[1] != self._d_vmf:
-            raise ValueError(f"x_vmf must have shape (n, {self._d_vmf}).")
+        x_gauss = self._validate_input_matrix(x_gauss, n_features=self._d_gauss, name="x_gauss")
+        x_vmf = self._validate_input_matrix(x_vmf, n_features=self._d_vmf, name="x_vmf")
         if x_gauss.shape[0] != x_vmf.shape[0]:
             raise ValueError("x_gauss and x_vmf must have the same number of samples.")
         return x_gauss, x_vmf
-
-    @staticmethod
-    def _normalize_weights(sample_weight: Optional[Array], n_obs: int) -> Array:
-        if sample_weight is None:
-            return np.full(n_obs, 1.0 / n_obs, dtype=float)
-        w = np.asarray(sample_weight, dtype=float)
-        if w.ndim != 1 or w.shape[0] != n_obs:
-            raise ValueError(f"sample_weight must have shape ({n_obs},).")
-        if not np.all(np.isfinite(w)):
-            raise ValueError("sample_weight contains non-finite values.")
-        if np.any(w < 0.0):
-            raise ValueError("sample_weight must be nonnegative.")
-        total = float(w.sum())
-        if total <= 0.0:
-            raise ValueError("sample_weight must sum to a positive value.")
-        return w / total
 
     # ---- Properties and setters ----
     @property
@@ -182,11 +158,11 @@ class Cylindrical(Distribution):
 
     # ---- Distribution API ----
     def log_pdf(self, x: Array) -> Array:
-        x = self._validate_input_samples(x)
-        if x.ndim != 2:
-            raise ValueError("Cylindrical expects x with shape (n, d_gauss + d_vmf).")
-        if x.shape[1] != self.d_total:
-            raise ValueError(f"x must have {self.d_total} features.")
+        x = self._validate_input_matrix(
+            x,
+            n_features=self.d_total,
+            name="x",
+        )
 
         x_gauss = x[:, :self._d_gauss]
         x_vmf = x[:, self._d_gauss:]
@@ -209,7 +185,7 @@ class Cylindrical(Distribution):
 
     def sample(self, n: int, rng: Optional[np.random.RandomState] = None) -> Array:
         self._validate_n_samples(n)
-        rng = np.random.RandomState() if rng is None else rng
+        rng = self._resolve_rng(rng)
 
         x_vmf = self._vmf.sample(n, rng)
         kappa = self._vmf.kappa
@@ -231,11 +207,16 @@ class Cylindrical(Distribution):
         if not np.isfinite(ridge) or ridge < 0.0:
             raise ValueError("ridge must be a finite nonnegative scalar.")
         if x_vmf is None:
-            x_gauss, x_vmf = x_gauss[:,:self._d_gauss], x_gauss[:,self._d_gauss:]
+            x_joint = self._validate_input_matrix(
+                x_gauss,
+                n_features=self.d_total,
+                name="x",
+            )
+            x_gauss, x_vmf = x_joint[:, :self._d_gauss], x_joint[:, self._d_gauss:]
 
         x_gauss, x_vmf = self._validate_blocks(x_gauss, x_vmf)
         n_obs = x_gauss.shape[0]
-        weights = self._normalize_weights(sample_weight, n_obs)
+        weights = self._normalize_sample_weight(sample_weight, n_obs)
 
         self._vmf.fit(x_vmf, sample_weight=weights, case="bregman")
         kappa = self._vmf.kappa

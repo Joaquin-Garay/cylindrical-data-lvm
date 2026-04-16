@@ -21,15 +21,13 @@ class Categorical(Distribution):
     def __init__(self, probs: Array):
         self._probs = self._validate_probs(probs)
 
-    @staticmethod
-    def _validate_probs(probs: Array) -> Array:
-        p = np.asarray(probs, dtype=float)
+    @classmethod
+    def _validate_probs(cls, probs: Array) -> Array:
+        p = cls._validate_finite_array(probs, name="probs")
         if p.ndim != 1:
             raise ValueError("probs must be a 1D array with shape (k,).")
         if p.size < 2:
             raise ValueError("probs must contain at least two categories.")
-        if not np.all(np.isfinite(p)):
-            raise ValueError("probs contains non-finite values.")
         if np.any(p < 0):
             raise ValueError("probs must be nonnegative.")
         total = float(p.sum())
@@ -50,12 +48,10 @@ class Categorical(Distribution):
         return int(self._probs.size)
 
     def log_pdf(self, x: Array) -> Array:
-        x = np.asarray(x)
+        x = self._validate_input_samples(x)
 
         # Case 1: class indices with shape (n,)
         if x.ndim == 1:
-            if not np.all(np.isfinite(x)):
-                raise ValueError("x contains non-finite values.")
             if not np.all(np.equal(x, np.round(x))):
                 raise ValueError("Categorical labels must be integer-valued.")
             idx = x.astype(int)
@@ -67,14 +63,10 @@ class Categorical(Distribution):
 
         # Case 2: one-hot encoded rows with shape (n, k)
         if x.ndim == 2:
-            if x.shape[0] < 1:
-                raise ValueError("x must contain at least one sample.")
             if x.shape[1] != self.n_categories:
                 raise ValueError(
                     f"One-hot x must have {self.n_categories} columns."
                 )
-            if not np.all(np.isfinite(x)):
-                raise ValueError("x contains non-finite values.")
             if not np.all((x == 0) | (x == 1)):
                 raise ValueError("One-hot x must contain only 0/1 values.")
             row_sums = x.sum(axis=1)
@@ -86,7 +78,7 @@ class Categorical(Distribution):
 
     def sample(self, n: int, rng: Optional[np.random.RandomState] = None) -> Array:
         self._validate_n_samples(n)
-        rng = np.random.RandomState() if rng is None else rng
+        rng = self._resolve_rng(rng)
         return rng.choice(self.n_categories, size=n, p=self._probs)
 
     def __repr__(self) -> str:
