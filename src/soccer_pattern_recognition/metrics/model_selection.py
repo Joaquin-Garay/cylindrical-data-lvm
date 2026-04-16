@@ -3,7 +3,7 @@ import numpy as np
 from ..distributions import (
     Cylindrical,
     ExponentialFamily,
-    IndGaussVM,
+    IndCylindrical,
     MultivariateGaussian,
     UnivariateGaussian,
     VonMises,
@@ -27,7 +27,7 @@ def _num_free_params_for_component(comp: ExponentialFamily | Cylindrical) -> int
     if isinstance(comp, VonMisesFisher):
         # mu lies on S^{d-1} -> d-1 DoF, plus concentration kappa.
         return comp.d
-    if isinstance(comp, IndGaussVM):
+    if isinstance(comp, IndCylindrical):
         # composite: count the underlying parts
         return _num_free_params_for_component(comp.gaussian) + _num_free_params_for_component(comp.vonmises)
     if isinstance(comp, Cylindrical):
