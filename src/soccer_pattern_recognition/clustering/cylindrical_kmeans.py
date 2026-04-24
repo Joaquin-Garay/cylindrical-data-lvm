@@ -65,8 +65,10 @@ class CylindricalKMeans:
     K-means for cylindrical data with Euclidean and spherical blocks.
 
     Assignment objective:
-        ||x1 - mu1_k||^2 + lambda_ * (1 - x2^T mu2_k)
+        (1/2d) * (x1 - mu1_k)^T Sigma_1^{-1} (x1 - mu1_k) + lambda_ * (1 - x2^T mu2_k)
     where x2 and mu2_k are unit vectors.
+    Sigma_1 is the sample covariance matrix of x1, estimated once per fit call.
+    d is the Euclidean block dimension.
     """
 
     def __init__(
@@ -102,6 +104,28 @@ class CylindricalKMeans:
         self.labels_: Optional[np.ndarray] = None
         self.inertia_: Optional[float] = None
         self.n_iter_: Optional[int] = None
+        self.linear_covariance_: Optional[np.ndarray] = None
+        self.linear_precision_: Optional[np.ndarray] = None
+        self.linear_dimension_: Optional[int] = None
+
+    @staticmethod
+    def _linear_covariance_and_precision(x1: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        centered = x1 - np.mean(x1, axis=0, keepdims=True)
+        denom = float(max(x1.shape[0] - 1, 1))
+        covariance = (centered.T @ centered) / denom
+        # Use pseudo-inverse so the method remains well-defined for singular covariance.
+        precision = np.linalg.pinv(covariance)
+        precision = 0.5 * (precision + precision.T)
+        return covariance, precision
+
+    @staticmethod
+    def _scaled_quadratic_form(
+        diff: np.ndarray,
+        precision: np.ndarray,
+        *,
+        scale: float,
+    ) -> np.ndarray:
+        return scale * np.sum((diff @ precision) * diff, axis=-1)
 
     def _init_centers(
         self,
@@ -117,10 +141,13 @@ class CylindricalKMeans:
         x2: np.ndarray,
         mu1: np.ndarray,
         mu2: np.ndarray,
+        sigma1_inv: np.ndarray,
+        linear_scale: float,
     ) -> tuple[np.ndarray, np.ndarray]:
-        sq_euclid = np.sum((x1[:, None, :] - mu1[None, :, :]) ** 2, axis=2)
+        diff = x1[:, None, :] - mu1[None, :, :]
+        linear_term = self._scaled_quadratic_form(diff, sigma1_inv, scale=linear_scale)
         cos_sim = np.clip(x2 @ mu2.T, -1.0, 1.0)
-        loss = sq_euclid + self.lambda_ * (1.0 - cos_sim)
+        loss = linear_term + self.lambda_ * (1.0 - cos_sim)
         labels = np.argmin(loss, axis=1)
         point_loss = loss[np.arange(x1.shape[0]), labels]
         return labels, point_loss
@@ -178,6 +205,9 @@ class CylindricalKMeans:
             x_spherical,
             n_clusters=self.n_clusters,
         )
+        sigma1, sigma1_inv = self._linear_covariance_and_precision(x1)
+        d1 = float(x1.shape[1])
+        linear_scale = 0.5 / d1
 
         best_mu1: Optional[np.ndarray] = None
         best_mu2: Optional[np.ndarray] = None
@@ -191,7 +221,14 @@ class CylindricalKMeans:
             n_iter_run = 0
 
             for it in range(self.max_iter):
-                new_labels, point_loss = self._assign(x1, x2, mu1, mu2)
+                new_labels, point_loss = self._assign(
+                    x1,
+                    x2,
+                    mu1,
+                    mu2,
+                    sigma1_inv,
+                    linear_scale,
+                )
                 new_mu1, new_mu2, had_empty_reseed = self._update_centers(
                     x1,
                     x2,
@@ -199,10 +236,13 @@ class CylindricalKMeans:
                     point_loss,
                 )
 
-                euclid_shift = float(np.max(np.linalg.norm(mu1 - new_mu1, axis=1)))
+                mu_shift = mu1 - new_mu1
+                linear_shift = float(
+                    np.max(self._scaled_quadratic_form(mu_shift, sigma1_inv, scale=linear_scale))
+                )
                 sphere_cos = np.sum(mu2 * new_mu2, axis=1)
                 sphere_shift = float(np.max(1.0 - np.clip(sphere_cos, -1.0, 1.0)))
-                center_shift = max(euclid_shift, sphere_shift)
+                center_shift = max(linear_shift, sphere_shift)
 
                 mu1 = new_mu1
                 mu2 = new_mu2
@@ -214,7 +254,14 @@ class CylindricalKMeans:
                     break
                 labels = new_labels
 
-            final_labels, final_point_loss = self._assign(x1, x2, mu1, mu2)
+            final_labels, final_point_loss = self._assign(
+                x1,
+                x2,
+                mu1,
+                mu2,
+                sigma1_inv,
+                linear_scale,
+            )
             final_inertia = float(np.sum(final_point_loss))
 
             if final_inertia < best_inertia:
@@ -232,10 +279,18 @@ class CylindricalKMeans:
         self.labels_ = best_labels
         self.inertia_ = float(best_inertia)
         self.n_iter_ = int(best_n_iter)
+        self.linear_covariance_ = sigma1
+        self.linear_precision_ = sigma1_inv
+        self.linear_dimension_ = int(d1)
         return self
 
     def predict(self, x_euclid: Array, x_spherical: Array) -> np.ndarray:
-        if self.cluster_centers_euclid_ is None or self.cluster_centers_spherical_ is None:
+        if (
+            self.cluster_centers_euclid_ is None
+            or self.cluster_centers_spherical_ is None
+            or self.linear_precision_ is None
+            or self.linear_dimension_ is None
+        ):
             raise RuntimeError("The model is not fitted yet. Call fit(...) first.")
 
         x1, x2 = _validate_inputs(x_euclid, x_spherical, n_clusters=1)
@@ -249,12 +304,15 @@ class CylindricalKMeans:
                 "x_spherical feature mismatch with fitted centers: "
                 f"expected {self.cluster_centers_spherical_.shape[1]}, got {x2.shape[1]}."
             )
+        linear_scale = 0.5 / float(self.linear_dimension_)
 
         labels, _ = self._assign(
             x1,
             x2,
             self.cluster_centers_euclid_,
             self.cluster_centers_spherical_,
+            self.linear_precision_,
+            linear_scale,
         )
         return labels
 

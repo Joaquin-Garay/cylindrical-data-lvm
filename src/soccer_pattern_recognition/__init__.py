@@ -4,6 +4,7 @@ from importlib import import_module
 from typing import Any
 
 __all__ = [
+    "clustering",
     "core",
     "distributions",
     "hierarchical",
@@ -38,11 +39,16 @@ __all__ = [
     "VonMisesFisher",
     "Cylindrical",
     "IndCylindrical",
+    "SphericalKMeans",
+    "spherical_kmeans",
+    "CylindricalKMeans",
+    "cylindrical_kmeans",
 ]
 
 
 def __getattr__(name: str) -> Any:
     if name in {
+        "clustering",
         "core",
         "distributions",
         "hierarchical",
@@ -170,6 +176,28 @@ def __getattr__(name: str) -> Any:
             "VonMisesFisher": VonMisesFisher,
             "Cylindrical": Cylindrical,
             "IndCylindrical": IndCylindrical,
+        }
+        globals().update(_symbols)
+        return _symbols[name]
+
+    if name in {
+        "SphericalKMeans",
+        "spherical_kmeans",
+        "CylindricalKMeans",
+        "cylindrical_kmeans",
+    }:
+        from .clustering import (
+            CylindricalKMeans,
+            SphericalKMeans,
+            cylindrical_kmeans,
+            spherical_kmeans,
+        )
+
+        _symbols = {
+            "SphericalKMeans": SphericalKMeans,
+            "spherical_kmeans": spherical_kmeans,
+            "CylindricalKMeans": CylindricalKMeans,
+            "cylindrical_kmeans": cylindrical_kmeans,
         }
         globals().update(_symbols)
         return _symbols[name]
