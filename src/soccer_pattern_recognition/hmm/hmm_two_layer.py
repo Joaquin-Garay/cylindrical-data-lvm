@@ -75,7 +75,7 @@ class TwoLayerEmission(TwoLayerEmissionIOMixin, BaseEmission):
         """
         emission_params: dict
             example {"pass": [3,"k-means", 2, "k-means"],
-                    ""dribble": [5,"k-means", 3, "k-means++"]}
+                    ""dribble": [5,"k-means", 3, "k-means"]}
 
             Key: Action types
             Value[0]: int. Number of components in layer 1 (location)
@@ -203,7 +203,7 @@ class TwoLayerEmission(TwoLayerEmissionIOMixin, BaseEmission):
         if not isinstance(self.hyperparams, dict) or len(self.hyperparams) == 0:
             raise ValueError("hyperparams must be a non-empty dict.")
 
-        allowed_init = {"k-means++", "k-means", "random_from_data", "random"}
+        allowed_init = {"k-means", "random"}
         expected_actions = self.model_actions
         expected_action_set = set(expected_actions)
         action_spec: dict[str, tuple[int, int]] = {}

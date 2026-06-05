@@ -55,6 +55,9 @@ class TwoLayerMoM(Distribution):
 
         self.layer2_mixtures = layer2_mixtures
 
+        self.logger = None
+        self.n_iter = None
+
     def init(self, layer1_data, layer2_data):
         """
         Initialization method
@@ -202,7 +205,7 @@ class TwoLayerMoM(Distribution):
             verbose: bool = False,
             m_step_case: str = "classic",
             c_step_bool: bool = False,
-            ) -> int:
+            ) -> None:
         """
         Fit the two-layer mixture-of-mixtures model with joint EM.
 
@@ -320,8 +323,8 @@ class TwoLayerMoM(Distribution):
             if verbose:
                 print("Reached max_iter without full convergence.")
 
-        self.logger_ = logger
-        return n_iter
+        self.logger = logger
+        self.n_iter = n_iter
 
     def sample(self, n: int, rng: Optional[np.random.RandomState] = None) -> Array:
         self._validate_n_samples(n)

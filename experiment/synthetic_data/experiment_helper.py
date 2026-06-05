@@ -29,6 +29,22 @@ def _safe_weights(mixture):
         return None
 
 
+def _extract_cylindrical_gaussian_params(component):
+    # Cylindrical: direct fields
+    if hasattr(component, "mu_gauss") and hasattr(component, "cond_cov"):
+        return np.asarray(component.mu_gauss, dtype=float), np.asarray(component.cond_cov, dtype=float)
+
+    # IndCylindrical: nested Gaussian submodel
+    if hasattr(component, "gaussian"):
+        mean, cov = component.gaussian.params
+        return np.asarray(mean, dtype=float), np.asarray(cov, dtype=float)
+
+    raise ValueError(
+        "Unsupported component type for cylindrical plot: expected Cylindrical "
+        "or IndCylindrical-like component."
+    )
+
+
 def plot_cylindrical_components(
     model_or_components,
     *,
@@ -38,6 +54,7 @@ def plot_cylindrical_components(
     alpha=0.22,
     n_ellipsoid=36,
     ax=None,
+    title=None,
 ):
     """
     Plot Cylindrical components in 3D:
@@ -47,10 +64,8 @@ def plot_cylindrical_components(
     # Accept either a MixtureModel-like object or a plain list of components
     if hasattr(model_or_components, "components"):
         components = list(model_or_components.components)
-        weights = getattr(model_or_components, "weights", None)
     else:
         components = list(model_or_components)
-        weights = None
 
     if len(components) == 0:
         raise ValueError("No components to plot.")
@@ -85,8 +100,7 @@ def plot_cylindrical_components(
     for i, comp in enumerate(components):
         color = cmap(i % 10)
 
-        mu = comp.mu_gauss
-        Sigma = comp.cond_cov
+        mu, Sigma = _extract_cylindrical_gaussian_params(comp)
         evals, evecs = np.linalg.eigh(Sigma)
         evals = np.clip(evals, 1e-12, None)
         radii = n_std * np.sqrt(evals)
@@ -118,7 +132,7 @@ def plot_cylindrical_components(
     ax.set_xlabel("x")
     ax.set_ylabel("y")
     ax.set_zlabel("z")
-    ax.set_title("Cylindrical mixture parameters")
+    ax.set_title("Cylindrical mixture parameters" if title is None else str(title))
     _set_axes_equal_3d(ax)
     return fig, ax
 
@@ -134,6 +148,7 @@ def plot_mom_components(
     n_ellipsoid=36,
     annotate_arrows=True,
     ax=None,
+    title=None,
 ):
     """
     Plot TwoLayerMoM parameters in 3D:
@@ -249,7 +264,7 @@ def plot_mom_components(
     ax.set_xlabel("x")
     ax.set_ylabel("y")
     ax.set_zlabel("z")
-    ax.set_title("Two-layer MoM parameters")
+    ax.set_title("Two-layer MoM parameters" if title is None else str(title))
     _set_axes_equal_3d(ax)
     return fig, ax
 

@@ -35,9 +35,9 @@ class MixtureModel(Distribution):
         else:
             raise TypeError("rng must be None, an int seed, or np.random.RandomState.")
 
-        allowed = {"k-means++", "k-means", "random_from_data", "random"}
+        allowed = {"k-means", "random"}
         if init is None:
-            self._init = "k-means++"
+            self._init = "k-means"
         elif init in allowed:
             self._init = init
         else:
@@ -56,6 +56,7 @@ class MixtureModel(Distribution):
             self._is_initialized = False
 
         self.logger = None
+        self.n_iter = None
 
     def _initialize(self,
                     x: Array,
@@ -274,7 +275,7 @@ class MixtureModel(Distribution):
         if not isinstance(c_step_bool, (bool, np.bool_)):
             raise TypeError("c_step_bool must be a boolean.")
 
-        self.logger = fit_em(self, x, sample_weight,
+        self.logger, self.n_iter = fit_em(self, x, sample_weight,
                       tol,
                       max_iter,
                       m_step_case,
@@ -336,4 +337,3 @@ class MixtureModel(Distribution):
         """Average log-likelihood per sample (sklearn-style)."""
         x = np.asarray(x, dtype=float)
         return float(self.log_pdf(x).mean())
-

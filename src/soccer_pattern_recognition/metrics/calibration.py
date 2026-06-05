@@ -24,8 +24,10 @@ def _validate_component_grid(name: str, values: Sequence[int]) -> list[int]:
 
 
 def _validate_selection(selection: str) -> str:
-    if selection not in {"best", "mean", "median"}:
-        raise ValueError("selection must be one of {'best', 'mean', 'median'}.")
+    if selection not in {"best", "mean", "median", "mean_plus_2std"}:
+        raise ValueError(
+            "selection must be one of {'best', 'mean', 'median', 'mean_plus_2std'}; "
+        )
     return selection
 
 
@@ -33,6 +35,22 @@ def _validate_score_metric(score_metric: str) -> str:
     if score_metric not in {"nll", "bic"}:
         raise ValueError("score_metric must be one of {'nll', 'bic'}.")
     return score_metric
+
+
+def _score_metric_higher_is_better(score_metric: str) -> bool:
+    # Current built-in metrics are loss-like (lower is better).
+    metric_direction = {
+        "nll": False,
+        "bic": False,
+    }
+    return metric_direction[score_metric]
+
+
+def _selection_higher_is_better(selection: str, *, metric_higher_is_better: bool) -> bool:
+    # Risk-averse aggregate is explicitly lower-is-better.
+    if selection == "mean_plus_2std":
+        return False
+    return metric_higher_is_better
 
 
 def _validate_cv(cv: int, n_obs: int) -> int:
@@ -72,9 +90,11 @@ def _build_cv_splits(
     return splits
 
 
-def _selection_score(values: np.ndarray, selection: str) -> float:
+def _selection_score(values: np.ndarray, selection: str, *, higher_is_better: bool) -> float:
     if selection == "best":
-        return float(np.min(values))
+        return float(np.max(values) if higher_is_better else np.min(values))
+    if selection == "mean_plus_2std":
+        return float(np.mean(values) + 2.0 * np.std(values))
     if selection == "median":
         return float(np.median(values))
     return float(np.mean(values))
@@ -85,10 +105,19 @@ def _select_representative_run(
         *,
         selection: str,
         selection_score: float,
+        metric_higher_is_better: bool,
+        selection_higher_is_better: bool,
         metric_key: str = "bic",
         ) -> dict[str, Any]:
     if selection == "best":
+        if metric_higher_is_better:
+            return max(runs, key=lambda r: float(r[metric_key]))
         return min(runs, key=lambda r: float(r[metric_key]))
+    if selection_higher_is_better:
+        return min(
+            runs,
+            key=lambda r: (abs(float(r[metric_key]) - selection_score), -float(r[metric_key])),
+        )
     return min(
         runs,
         key=lambda r: (abs(float(r[metric_key]) - selection_score), float(r[metric_key])),
@@ -132,13 +161,13 @@ def calibrate_mixture_by_cv_grid_search(
         n_components_grid: Sequence[int] = (2, 3, 4),
         cv: int = 5,
         n_restarts: int = 2,
-        init: str = "k-means++",
+        init: str = "k-means",
         model_builder: Optional[
             Callable[[int, str, np.random.RandomState], "MixtureModel"]
         ] = None,
         tol: float = 1e-4,
         max_iter: int = 300,
-        m_step_case: str = "classic",
+        m_step_case: str = "bregman",
         c_step_bool: bool = False,
         verbose: bool = False,
         random_state: Optional[int] = 42,
@@ -154,12 +183,13 @@ def calibrate_mixture_by_cv_grid_search(
     then restarts inside each fold. The per-run validation score is controlled
     by ``score_metric``:
 
-    - ``"nll"``: ``-mean(log_pdf(x_val))``
+    - ``"nll"``: ``-sum(log_pdf(x_val))``
     - ``"bic"``: ``bic_score(x_val)``
 
-    Lower is better. Within each fold, restart scores are aggregated by
-    ``selection`` (``"best"``, ``"mean"``, or ``"median"``). The
-    configuration score is then the mean of those fold-level aggregated scores.
+    For currently supported metrics (``"nll"``, ``"bic"``), lower is better.
+    For each configuration, all successful restart scores across all folds are
+    pooled into a single vector, and ``selection`` (``"best"``, ``"mean"``,
+    ``"median"``, or ``"mean_plus_2std"``) is applied on that pooled set.
 
     Parameters
     ----------
@@ -172,7 +202,7 @@ def calibrate_mixture_by_cv_grid_search(
         fold (train=validation=data).
     n_restarts : int, default=2
         Number of random initializations per fold and configuration.
-    init : {"k-means++", "k-means", "random_from_data", "random"}, default="k-means++"
+    init : {"k-means", "random"}, default="k-means"
         Initialization method passed to the mixture model.
     model_builder : callable or None, default=None
         Builder receiving ``(n_components, init, rng)`` and returning a fresh
@@ -184,8 +214,13 @@ def calibrate_mixture_by_cv_grid_search(
     fail_fast : bool, default=False
         If ``True``, raise immediately on the first failed run; otherwise keep
         searching and mark failed runs/configurations.
-    selection : {"best", "mean", "median"}, default="mean"
-        Aggregator applied to restart scores within each fold.
+    selection : {"best", "mean", "median", "mean_plus_2std"}, default="mean"
+        Aggregator applied to pooled successful restart scores from all folds.
+        ``"best"`` follows score direction: min for lower-is-better metrics and
+        max for higher-is-better metrics. ``"max"`` is accepted as a
+        backward-compatible alias of ``"best"``.
+        ``"mean_plus_2std"`` computes ``mean(scores) + 2*std(scores)`` and is
+        always treated as lower-is-better.
     score_metric : {"nll", "bic"}, default="nll"
         Validation metric used per run.
     shuffle : bool, default=True
@@ -200,7 +235,7 @@ def calibrate_mixture_by_cv_grid_search(
         - ``best_cv_score``: selected configuration score
           (same as ``best_selection_score``).
         - ``best_bic_refit``: BIC of ``best_model`` on full data.
-        - ``best_selection_score``: fold-aggregated selection score.
+        - ``best_selection_score``: selection score on pooled fold+restart scores.
         - ``best_config``: selected hyperparameters and run metadata.
         - ``selection``, ``score_metric``, ``cv``, ``shuffle``.
         - ``results``: per-(config, fold, restart) run records.
@@ -221,6 +256,13 @@ def calibrate_mixture_by_cv_grid_search(
     n_restarts = int(n_restarts)
     selection = _validate_selection(selection)
     score_metric = _validate_score_metric(score_metric)
+    metric_higher_is_better = _score_metric_higher_is_better(score_metric)
+    selection_higher_is_better = _selection_higher_is_better(
+        selection,
+        metric_higher_is_better=metric_higher_is_better,
+    )
+    failed_cv_score = -np.inf if metric_higher_is_better else np.inf
+    failed_selection_score = -np.inf if selection_higher_is_better else np.inf
     cv = _validate_cv(cv, x.shape[0])
 
     n_candidates = _validate_component_grid("n_components_grid", n_components_grid)
@@ -294,7 +336,7 @@ def calibrate_mixture_by_cv_grid_search(
                     if not np.all(np.isfinite(ll_val)):
                         raise ValueError("Validation log-likelihood produced non-finite values.")
 
-                    fold_nll = float(-np.mean(ll_val))
+                    fold_nll = float(-np.sum(ll_val))
                     if score_metric == "nll":
                         fold_score = fold_nll
                         fold_bic = np.nan
@@ -304,7 +346,7 @@ def calibrate_mixture_by_cv_grid_search(
                             raise ValueError("Validation BIC produced non-finite values.")
                         fold_score = fold_bic
 
-                    n_iter = int(model.logger[1]) if isinstance(model.logger, tuple) else None
+                    n_iter = model.n_iter
                     rec.update({
                         "success": True,
                         "cv_score": fold_score,
@@ -326,7 +368,7 @@ def calibrate_mixture_by_cv_grid_search(
                 except Exception as exc:  # pragma: no cover - kept for robust search.
                     rec.update({
                         "success": False,
-                        "cv_score": np.inf,
+                        "cv_score": failed_cv_score,
                         "fold_nll": np.inf,
                         "fold_bic": np.inf if score_metric == "bic" else np.nan,
                         "n_iter": None,
@@ -339,7 +381,6 @@ def calibrate_mixture_by_cv_grid_search(
 
     config_results: list[dict[str, Any]] = []
     for n_components in n_candidates:
-        fold_scores: list[float] = []
         successful_folds = 0
         failed_folds = 0
         successful_restarts_total = 0
@@ -351,13 +392,16 @@ def calibrate_mixture_by_cv_grid_search(
             if not runs:
                 failed_folds += 1
                 continue
-            scores = np.asarray([float(r["cv_score"]) for r in runs], dtype=float)
-            fold_scores.append(_selection_score(scores, selection))
             successful_folds += 1
 
         if successful_folds == n_folds:
-            scores = np.asarray(fold_scores, dtype=float)
-            score = float(np.mean(scores))
+            all_runs = successful_runs_by_config[(n_components,)]
+            scores = np.asarray([float(r["cv_score"]) for r in all_runs], dtype=float)
+            score = _selection_score(
+                scores,
+                selection,
+                higher_is_better=metric_higher_is_better,
+            )
             summary = {
                 "n_components": n_components,
                 "successful_restarts": int(successful_restarts_total),
@@ -372,7 +416,7 @@ def calibrate_mixture_by_cv_grid_search(
                 "selection_score": float(score),
                 "selection": selection,
                 "score_metric": score_metric,
-                "fold_aggregation": "mean",
+                "fold_aggregation": "all_folds_restarts",
                 "success": True,
             }
         else:
@@ -387,10 +431,10 @@ def calibrate_mixture_by_cv_grid_search(
                 "cv_score_std": np.inf,
                 "cv_score_min": np.inf,
                 "cv_score_max": np.inf,
-                "selection_score": np.inf,
+                "selection_score": failed_selection_score,
                 "selection": selection,
                 "score_metric": score_metric,
-                "fold_aggregation": "mean",
+                "fold_aggregation": "all_folds_restarts",
                 "success": False,
             }
         config_results.append(summary)
@@ -399,13 +443,18 @@ def calibrate_mixture_by_cv_grid_search(
     if not successful_configs:
         raise RuntimeError("All grid-search runs failed. Set fail_fast=True to surface the first error.")
 
-    best_config_summary = min(successful_configs, key=lambda row: float(row["selection_score"]))
+    if selection_higher_is_better:
+        best_config_summary = max(successful_configs, key=lambda row: float(row["selection_score"]))
+    else:
+        best_config_summary = min(successful_configs, key=lambda row: float(row["selection_score"]))
     best_key = (int(best_config_summary["n_components"]),)
     best_runs = successful_runs_by_config[best_key]
     best_run = _select_representative_run(
         best_runs,
         selection=selection,
         selection_score=float(best_config_summary["selection_score"]),
+        metric_higher_is_better=metric_higher_is_better,
+        selection_higher_is_better=selection_higher_is_better,
         metric_key="cv_score",
     )
 
@@ -427,7 +476,7 @@ def calibrate_mixture_by_cv_grid_search(
         c_step_bool=c_step_bool,
     )
 
-    best_n_iter = int(best_model.logger[1]) if isinstance(best_model.logger, tuple) else None
+    best_n_iter = best_model.n_iter
     best_cv_score = float(best_config_summary["selection_score"])
     best_bic_refit = float(best_model.bic_score(x))
     best_config = {
@@ -438,7 +487,7 @@ def calibrate_mixture_by_cv_grid_search(
         "n_iter": best_n_iter,
         "selection": selection,
         "score_metric": score_metric,
-        "fold_aggregation": "mean",
+        "fold_aggregation": "all_folds_restarts",
         "selection_score": float(best_config_summary["selection_score"]),
         "cv_score_mean": float(best_config_summary["cv_score_mean"]),
         "cv_score_median": float(best_config_summary["cv_score_median"]),
@@ -447,8 +496,14 @@ def calibrate_mixture_by_cv_grid_search(
         "cv_score_max": float(best_config_summary["cv_score_max"]),
     }
 
-    results_sorted = sorted(results, key=lambda row: (not row["success"], row["cv_score"]))
-    config_results_sorted = sorted(config_results, key=lambda row: (not row["success"], row["selection_score"]))
+    if metric_higher_is_better:
+        results_sorted = sorted(results, key=lambda row: (not row["success"], -row["cv_score"]))
+    else:
+        results_sorted = sorted(results, key=lambda row: (not row["success"], row["cv_score"]))
+    if selection_higher_is_better:
+        config_results_sorted = sorted(config_results, key=lambda row: (not row["success"], -row["selection_score"]))
+    else:
+        config_results_sorted = sorted(config_results, key=lambda row: (not row["success"], row["selection_score"]))
     return {
         "best_model": best_model,
         "best_cv_score": best_cv_score,
@@ -472,8 +527,8 @@ def calibrate_mom_by_cv_grid_search(
         n_layer2_grid: Sequence[int] = (1, 2),
         cv: int = 5,
         n_restarts: int = 2,
-        init_layer1: str = "k-means++",
-        init_layer2: str = "k-means++",
+        init_layer1: str = "k-means",
+        init_layer2: str = "k-means",
         model_builder: Optional[
             Callable[[int, int, str, str, np.random.RandomState], "TwoLayerMoM"]
         ] = None,
@@ -495,12 +550,13 @@ def calibrate_mom_by_cv_grid_search(
     function evaluates folds first, then restarts inside each fold. The per-run
     validation score is controlled by ``score_metric``:
 
-    - ``"nll"``: ``-mean(log_pdf(layer1_val, layer2_val))``
+    - ``"nll"``: ``-sum(log_pdf(layer1_val, layer2_val))``
     - ``"bic"``: ``bic_score(layer1_val, layer2_val)``
 
-    Lower is better. Within each fold, restart scores are aggregated by
-    ``selection`` (``"best"``, ``"mean"``, or ``"median"``). The
-    configuration score is then the mean of those fold-level aggregated scores.
+    For currently supported metrics (``"nll"``, ``"bic"``), lower is better.
+    For each configuration, all successful restart scores across all folds are
+    pooled into a single vector, and ``selection`` (``"best"``, ``"mean"``,
+    ``"median"``, or ``"mean_plus_2std"``) is applied on that pooled set.
 
     Parameters
     ----------
@@ -517,7 +573,7 @@ def calibrate_mom_by_cv_grid_search(
         fold (train=validation=data).
     n_restarts : int, default=2
         Number of random initializations per fold and configuration.
-    init_layer1, init_layer2 : str, default="k-means++"
+    init_layer1, init_layer2 : str, default="k-means"
         Initialization modes passed to the model builder.
     model_builder : callable or None, default=None
         Builder receiving ``(n_layer1, n_layer2, init_layer1, init_layer2, rng)``
@@ -530,8 +586,13 @@ def calibrate_mom_by_cv_grid_search(
     fail_fast : bool, default=False
         If ``True``, raise immediately on the first failed run; otherwise keep
         searching and mark failed runs/configurations.
-    selection : {"best", "mean", "median"}, default="mean"
-        Aggregator applied to restart scores within each fold.
+    selection : {"best", "mean", "median", "mean_plus_2std"}, default="mean"
+        Aggregator applied to pooled successful restart scores from all folds.
+        ``"best"`` follows score direction: min for lower-is-better metrics and
+        max for higher-is-better metrics. ``"max"`` is accepted as a
+        backward-compatible alias of ``"best"``.
+        ``"mean_plus_2std"`` computes ``mean(scores) + 2*std(scores)`` and is
+        always treated as lower-is-better.
     score_metric : {"nll", "bic"}, default="nll"
         Validation metric used per run.
     shuffle : bool, default=True
@@ -546,7 +607,7 @@ def calibrate_mom_by_cv_grid_search(
         - ``best_cv_score``: selected configuration score
           (same as ``best_selection_score``).
         - ``best_bic_refit``: BIC of ``best_model`` on full data.
-        - ``best_selection_score``: fold-aggregated selection score.
+        - ``best_selection_score``: selection score on pooled fold+restart scores.
         - ``best_config``: selected hyperparameters and run metadata.
         - ``selection``, ``score_metric``, ``cv``, ``shuffle``.
         - ``results``: per-(config, fold, restart) run records.
@@ -570,6 +631,13 @@ def calibrate_mom_by_cv_grid_search(
     n_restarts = int(n_restarts)
     selection = _validate_selection(selection)
     score_metric = _validate_score_metric(score_metric)
+    metric_higher_is_better = _score_metric_higher_is_better(score_metric)
+    selection_higher_is_better = _selection_higher_is_better(
+        selection,
+        metric_higher_is_better=metric_higher_is_better,
+    )
+    failed_cv_score = -np.inf if metric_higher_is_better else np.inf
+    failed_selection_score = -np.inf if selection_higher_is_better else np.inf
     cv = _validate_cv(cv, layer1_data.shape[0])
 
     layer1_candidates = _validate_component_grid("n_layer1_grid", n_layer1_grid)
@@ -620,7 +688,7 @@ def calibrate_mom_by_cv_grid_search(
                                 "model_builder returned a model with inconsistent layer-2 component counts."
                             )
 
-                        n_iter = model.fit(
+                        model.fit(
                             layer1_data[train_idx],
                             layer2_data[train_idx],
                             tol=tol,
@@ -629,6 +697,7 @@ def calibrate_mom_by_cv_grid_search(
                             m_step_case=m_step_case,
                             c_step_bool=c_step_bool,
                         )
+                        n_iter = model.n_iter
                         ll_val = np.asarray(
                             model.log_pdf(layer1_data[val_idx], layer2_data[val_idx]),
                             dtype=float,
@@ -636,7 +705,7 @@ def calibrate_mom_by_cv_grid_search(
                         if not np.all(np.isfinite(ll_val)):
                             raise ValueError("Validation log-likelihood produced non-finite values.")
 
-                        fold_nll = float(-np.mean(ll_val))
+                        fold_nll = float(-np.sum(ll_val))
                         if score_metric == "nll":
                             fold_score = fold_nll
                             fold_bic = np.nan
@@ -651,7 +720,7 @@ def calibrate_mom_by_cv_grid_search(
                             "cv_score": fold_score,
                             "fold_nll": fold_nll,
                             "fold_bic": fold_bic,
-                            "n_iter": int(n_iter),
+                            "n_iter": n_iter,
                         })
                         run_info = {
                             "cv_score": fold_score,
@@ -669,7 +738,7 @@ def calibrate_mom_by_cv_grid_search(
                     except Exception as exc:  # pragma: no cover - kept for robust search.
                         rec.update({
                             "success": False,
-                            "cv_score": np.inf,
+                            "cv_score": failed_cv_score,
                             "fold_nll": np.inf,
                             "fold_bic": np.inf if score_metric == "bic" else np.nan,
                             "n_iter": None,
@@ -683,7 +752,6 @@ def calibrate_mom_by_cv_grid_search(
     config_results: list[dict[str, Any]] = []
     for n_layer1 in layer1_candidates:
         for n_layer2 in layer2_candidates:
-            fold_scores: list[float] = []
             successful_folds = 0
             failed_folds = 0
             successful_restarts_total = 0
@@ -695,13 +763,16 @@ def calibrate_mom_by_cv_grid_search(
                 if not runs:
                     failed_folds += 1
                     continue
-                scores = np.asarray([float(r["cv_score"]) for r in runs], dtype=float)
-                fold_scores.append(_selection_score(scores, selection))
                 successful_folds += 1
 
             if successful_folds == n_folds:
-                scores = np.asarray(fold_scores, dtype=float)
-                score = float(np.mean(scores))
+                all_runs = successful_runs_by_config[(n_layer1, n_layer2)]
+                scores = np.asarray([float(r["cv_score"]) for r in all_runs], dtype=float)
+                score = _selection_score(
+                    scores,
+                    selection,
+                    higher_is_better=metric_higher_is_better,
+                )
                 summary = {
                     "n_layer1_components": n_layer1,
                     "n_layer2_components": n_layer2,
@@ -717,7 +788,7 @@ def calibrate_mom_by_cv_grid_search(
                     "selection_score": float(score),
                     "selection": selection,
                     "score_metric": score_metric,
-                    "fold_aggregation": "mean",
+                    "fold_aggregation": "all_folds_restarts",
                     "success": True,
                 }
             else:
@@ -733,10 +804,10 @@ def calibrate_mom_by_cv_grid_search(
                     "cv_score_std": np.inf,
                     "cv_score_min": np.inf,
                     "cv_score_max": np.inf,
-                    "selection_score": np.inf,
+                    "selection_score": failed_selection_score,
                     "selection": selection,
                     "score_metric": score_metric,
-                    "fold_aggregation": "mean",
+                    "fold_aggregation": "all_folds_restarts",
                     "success": False,
                 }
             config_results.append(summary)
@@ -745,7 +816,10 @@ def calibrate_mom_by_cv_grid_search(
     if not successful_configs:
         raise RuntimeError("All grid-search runs failed. Set fail_fast=True to surface the first error.")
 
-    best_config_summary = min(successful_configs, key=lambda row: float(row["selection_score"]))
+    if selection_higher_is_better:
+        best_config_summary = max(successful_configs, key=lambda row: float(row["selection_score"]))
+    else:
+        best_config_summary = min(successful_configs, key=lambda row: float(row["selection_score"]))
     best_key = (
         int(best_config_summary["n_layer1_components"]),
         int(best_config_summary["n_layer2_components"]),
@@ -755,6 +829,8 @@ def calibrate_mom_by_cv_grid_search(
         best_runs,
         selection=selection,
         selection_score=float(best_config_summary["selection_score"]),
+        metric_higher_is_better=metric_higher_is_better,
+        selection_higher_is_better=selection_higher_is_better,
         metric_key="cv_score",
     )
 
@@ -771,7 +847,7 @@ def calibrate_mom_by_cv_grid_search(
     if not all(mix.n_components == best_layer2 for mix in best_model.layer2_mixtures):
         raise ValueError("model_builder returned a model with inconsistent layer-2 component counts during refit.")
 
-    best_n_iter = int(best_model.fit(
+    best_model.fit(
         layer1_data,
         layer2_data,
         tol=tol,
@@ -779,7 +855,8 @@ def calibrate_mom_by_cv_grid_search(
         verbose=verbose,
         m_step_case=m_step_case,
         c_step_bool=c_step_bool,
-    ))
+    )
+    best_n_iter = best_model.n_iter
 
     best_cv_score = float(best_config_summary["selection_score"])
     best_bic_refit = float(best_model.bic_score(layer1_data, layer2_data))
@@ -792,7 +869,7 @@ def calibrate_mom_by_cv_grid_search(
         "n_iter": best_n_iter,
         "selection": selection,
         "score_metric": score_metric,
-        "fold_aggregation": "mean",
+        "fold_aggregation": "all_folds_restarts",
         "selection_score": float(best_config_summary["selection_score"]),
         "cv_score_mean": float(best_config_summary["cv_score_mean"]),
         "cv_score_median": float(best_config_summary["cv_score_median"]),
@@ -801,8 +878,14 @@ def calibrate_mom_by_cv_grid_search(
         "cv_score_max": float(best_config_summary["cv_score_max"]),
     }
 
-    results_sorted = sorted(results, key=lambda row: (not row["success"], row["cv_score"]))
-    config_results_sorted = sorted(config_results, key=lambda row: (not row["success"], row["selection_score"]))
+    if metric_higher_is_better:
+        results_sorted = sorted(results, key=lambda row: (not row["success"], -row["cv_score"]))
+    else:
+        results_sorted = sorted(results, key=lambda row: (not row["success"], row["cv_score"]))
+    if selection_higher_is_better:
+        config_results_sorted = sorted(config_results, key=lambda row: (not row["success"], -row["selection_score"]))
+    else:
+        config_results_sorted = sorted(config_results, key=lambda row: (not row["success"], row["selection_score"]))
     return {
         "best_model": best_model,
         "best_cv_score": best_cv_score,

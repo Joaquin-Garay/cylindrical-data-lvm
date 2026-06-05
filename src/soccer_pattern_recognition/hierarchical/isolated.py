@@ -11,16 +11,6 @@ from ..core import _EPS
 class IsolatedTwoLayerMoM(TwoLayerMoM):
     """Two-layer MoM variant whose ``fit`` uses the isolated two-stage routine."""
 
-    @staticmethod
-    def _extract_n_iter(logger: object) -> int:
-        if (
-            isinstance(logger, tuple)
-            and len(logger) == 2
-            and isinstance(logger[1], (int, np.integer))
-        ):
-            return int(logger[1])
-        return 0
-
     def fit(self,
             layer1_data: np.ndarray,
             layer2_data: np.ndarray,
@@ -29,7 +19,7 @@ class IsolatedTwoLayerMoM(TwoLayerMoM):
             verbose: bool = False,
             m_step_case: str = "classic",
             c_step_bool: bool = False,
-            ) -> int:
+            ) -> None:
         """
         Fit the two-layer model.
 
@@ -84,7 +74,7 @@ class IsolatedTwoLayerMoM(TwoLayerMoM):
                                 verbose=verbose,
                                 m_step_case=m_step_case,
                                 c_step_bool=c_step_bool)
-        layer1_counter = self._extract_n_iter(self.layer1_mixture.logger)
+        layer1_counter = self.layer1_mixture.n_iter
 
         # include a jitter in the posteriors probabilities
         layer1_posteriors = self.layer1_mixture.get_posteriors(layer1_data) + _EPS
@@ -110,7 +100,9 @@ class IsolatedTwoLayerMoM(TwoLayerMoM):
                                               m_step_case=m_step_case,
                                               c_step_bool=c_step_bool,
                                               )
-            l2_comp_counter = self._extract_n_iter(self.layer2_mixtures[l1_comp].logger)
+            l2_comp_counter = self.layer2_mixtures[l1_comp].n_iter
             layer2_counter += l2_comp_counter
 
-        return layer1_counter + layer2_counter
+        self.n_iter = layer1_counter + layer2_counter
+
+

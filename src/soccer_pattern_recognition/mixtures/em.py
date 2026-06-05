@@ -157,7 +157,7 @@ def fit_em(model: "MixtureModel",
         m_step(model, r, x, sample_weight, m_step_case, verbose)
 
         # check convergence
-        if it > 10 and abs(logger[-1] - logger[-2]) < tol:
+        if it > 5 and abs(logger[-1] - logger[-2]) < tol:
             if verbose:
                 print(f"Converged at iter {it}: LL={logger[-1]:.2f}, Delta LL={logger[-1] - logger[-2]:.2e}")
             break

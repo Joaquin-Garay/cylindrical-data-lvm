@@ -229,6 +229,7 @@ class Cylindrical(Distribution):
         Xw = X * sqrt_w[:, None]
         Yw = x_gauss * sqrt_w[:, None]
 
+        ridge *= kappa**2 # this keeps regularization invariant of kappa values.
         xtx = Xw.T @ Xw
         penalty = np.eye(xtx.shape[0], dtype=float)
         penalty[0, 0] = 0.0
@@ -240,7 +241,7 @@ class Cylindrical(Distribution):
         residual = x_gauss - X @ w
         self._cond_cov = residual.T @ (weights[:, None] * residual)
         if ridge > 0.0:
-            self._cond_cov += ridge * np.eye(self._d_gauss, dtype=float)
+            self._cond_cov += (ridge/(kappa**2)) * np.eye(self._d_gauss, dtype=float)
 
         self._validate_params()
         self._cache()
