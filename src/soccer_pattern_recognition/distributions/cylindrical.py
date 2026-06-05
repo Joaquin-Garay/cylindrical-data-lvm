@@ -197,12 +197,12 @@ class Cylindrical(Distribution):
 
     # ---- Calibration ----
     def fit(
-        self,
-        x_gauss: Array,
-        x_vmf: Optional[Array] = None,
-        sample_weight: Optional[Array] = None,
-        case: str = None,
-        ridge: float = 1e-6,
+            self,
+            x_gauss: Array,
+            x_vmf: Optional[Array] = None,
+            sample_weight: Optional[Array] = None,
+            case: str = None,
+            ridge: float = 1e-6,
     ) -> "Cylindrical":
         if not np.isfinite(ridge) or ridge < 0.0:
             raise ValueError("ridge must be a finite nonnegative scalar.")
@@ -222,26 +222,24 @@ class Cylindrical(Distribution):
         kappa = self._vmf.kappa
         mu_vmf = self._vmf.mu
 
-        regressor = kappa * (x_vmf - mu_vmf)
-        X = np.concatenate((np.ones((n_obs, 1), dtype=float), regressor), axis=1)
+        s_1 = x_gauss.T @ weights
+        s_2 = x_vmf.T @ weights
+        s_11 = x_gauss.T @ (x_gauss * weights[:, None])
+        s_12 = x_gauss.T @ (x_vmf * weights[:, None])
+        s_22 = x_vmf.T @ (x_vmf * weights[:, None])
 
-        sqrt_w = np.sqrt(weights)
-        Xw = X * sqrt_w[:, None]
-        Yw = x_gauss * sqrt_w[:, None]
+        cov_11 = s_11 - np.outer(s_1, s_1)
+        cov_12 = s_12 - np.outer(s_1, s_2)
+        cov_22 = s_22 - np.outer(s_2, s_2)
+        cov_22 += ridge * np.eye(self._d_vmf, dtype=float)
 
-        ridge *= kappa**2 # this keeps regularization invariant of kappa values.
-        xtx = Xw.T @ Xw
-        penalty = np.eye(xtx.shape[0], dtype=float)
-        penalty[0, 0] = 0.0
-        w = np.linalg.solve(xtx + ridge * penalty, Xw.T @ Yw)
-
-        self._mu_gauss = w[0, :]
-        self._cross_cov = w[1:, :].T
-
-        residual = x_gauss - X @ w
-        self._cond_cov = residual.T @ (weights[:, None] * residual)
-        if ridge > 0.0:
-            self._cond_cov += (ridge/(kappa**2)) * np.eye(self._d_gauss, dtype=float)
+        cross_factor = np.linalg.solve(cov_22, cov_12.T).T # cov_12 @ cov_22^(-1)
+        self._cross_cov = cross_factor / kappa
+        self._mu_gauss = s_1 - cross_factor @ (s_2 - mu_vmf)
+        self._cond_cov = cov_11 - cross_factor @ cov_12.T
+        #enforce symmetry
+        self._cond_cov = 0.5 * (self._cond_cov + self._cond_cov.T)
+        self._cond_cov += 1e-6 * np.eye(self._d_gauss, dtype=float)
 
         self._validate_params()
         self._cache()
