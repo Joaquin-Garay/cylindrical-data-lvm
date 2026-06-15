@@ -8,8 +8,8 @@ import numpy as np
 
 from ..core.types import Array
 
-
 RandomStateLike = Optional[Union[int, np.random.RandomState]]
+_RESULTANT_DENOM_EPS = 1e-12
 
 
 def _resolve_rng(rng: RandomStateLike) -> np.random.RandomState:
@@ -32,10 +32,10 @@ def _as_2d(x: Array, *, name: str) -> np.ndarray:
 
 
 def _validate_inputs(
-    x_euclid: Array,
-    x_spherical: Array,
-    *,
-    n_clusters: int,
+        x_euclid: Array,
+        x_spherical: Array,
+        *,
+        n_clusters: int,
 ) -> tuple[np.ndarray, np.ndarray]:
     x1 = _as_2d(x_euclid, name="x_euclid")
     x2 = _as_2d(x_spherical, name="x_spherical")
@@ -65,21 +65,22 @@ class CylindricalKMeans:
     K-means for cylindrical data with Euclidean and spherical blocks.
 
     Assignment objective:
-        (1/2d) * (x1 - mu1_k)^T Sigma_1^{-1} (x1 - mu1_k) + lambda_ * (1 - x2^T mu2_k)
+        (1/2d1) * (x1 - mu1_k)^T Sigma_1^{-1} (x1 - mu1_k)
+        + lambda_ * (1 - x2^T mu2_k) / (1 - A_m^2)
     where x2 and mu2_k are unit vectors.
-    Sigma_1 is the sample covariance matrix of x1, estimated once per fit call.
-    d is the Euclidean block dimension.
+    Sigma_1 and A_m are estimated once from the full dataset per fit call.
+    d1 is the Euclidean block dimension.
     """
 
     def __init__(
-        self,
-        n_clusters: int,
-        *,
-        lambda_: float = 1.0,
-        max_iter: int = 100,
-        tol: float = 1e-6,
-        n_init: int = 10,
-        rng: RandomStateLike = None,
+            self,
+            n_clusters: int,
+            *,
+            lambda_: float = 1.0,
+            max_iter: int = 100,
+            tol: float = 1e-6,
+            n_init: int = 10,
+            rng: RandomStateLike = None,
     ) -> None:
         if not isinstance(n_clusters, (int, np.integer)) or int(n_clusters) < 1:
             raise ValueError("n_clusters must be an integer >= 1.")
@@ -107,11 +108,12 @@ class CylindricalKMeans:
         self.linear_covariance_: Optional[np.ndarray] = None
         self.linear_precision_: Optional[np.ndarray] = None
         self.linear_dimension_: Optional[int] = None
+        self.spherical_resultant_length_: Optional[float] = None
 
     @staticmethod
     def _linear_covariance_and_precision(x1: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         centered = x1 - np.mean(x1, axis=0, keepdims=True)
-        denom = float(max(x1.shape[0] - 1, 1))
+        denom = float(max(x1.shape[0], 1))
         covariance = (centered.T @ centered) / denom
         # Use pseudo-inverse so the method remains well-defined for singular covariance.
         precision = np.linalg.pinv(covariance)
@@ -119,45 +121,61 @@ class CylindricalKMeans:
         return covariance, precision
 
     @staticmethod
-    def _scaled_quadratic_form(
-        diff: np.ndarray,
-        precision: np.ndarray,
-        *,
-        scale: float,
+    def _mean_resultant_length(x2: np.ndarray) -> float:
+        if x2.shape[0] == 0:
+            return 0.0
+        return min(float(np.linalg.norm(np.mean(x2, axis=0), ord=2)), 1.0 - 1e-6)
+
+    @staticmethod
+    def _euclidean_mahalanobis(
+            diff: np.ndarray,
+            precision: np.ndarray,
+            *,
+            scale: float,
     ) -> np.ndarray:
         return scale * np.sum((diff @ precision) * diff, axis=-1)
 
+    @staticmethod
+    def _directional_mahalanobis(
+            inner_product: np.ndarray,
+            resultant_length: float,
+    ) -> np.ndarray:
+        cos_sim = np.clip(inner_product, -1.0, 1.0)
+        denom = max(1.0 - resultant_length * resultant_length, _RESULTANT_DENOM_EPS)
+        return (1.0 - cos_sim) / denom
+
     def _init_centers(
-        self,
-        x1: np.ndarray,
-        x2: np.ndarray,
+            self,
+            x1: np.ndarray,
+            x2: np.ndarray,
     ) -> tuple[np.ndarray, np.ndarray]:
         idx = self._rng.choice(x1.shape[0], self.n_clusters, replace=False)
         return x1[idx].copy(), x2[idx].copy()
 
     def _assign(
-        self,
-        x1: np.ndarray,
-        x2: np.ndarray,
-        mu1: np.ndarray,
-        mu2: np.ndarray,
-        sigma1_inv: np.ndarray,
-        linear_scale: float,
+            self,
+            x1: np.ndarray,
+            x2: np.ndarray,
+            mu1: np.ndarray,
+            mu2: np.ndarray,
+            sigma1_inv: np.ndarray,
+            resultant_length: float,
+            linear_scale: float,
     ) -> tuple[np.ndarray, np.ndarray]:
         diff = x1[:, None, :] - mu1[None, :, :]
-        linear_term = self._scaled_quadratic_form(diff, sigma1_inv, scale=linear_scale)
-        cos_sim = np.clip(x2 @ mu2.T, -1.0, 1.0)
-        loss = linear_term + self.lambda_ * (1.0 - cos_sim)
+        linear_term = self._euclidean_mahalanobis(diff, sigma1_inv, scale=linear_scale)
+        dir_term = self._directional_mahalanobis(x2 @ mu2.T, resultant_length)
+        loss = linear_term + self.lambda_ * dir_term
         labels = np.argmin(loss, axis=1)
         point_loss = loss[np.arange(x1.shape[0]), labels]
         return labels, point_loss
 
     def _update_centers(
-        self,
-        x1: np.ndarray,
-        x2: np.ndarray,
-        labels: np.ndarray,
-        point_loss: np.ndarray,
+            self,
+            x1: np.ndarray,
+            x2: np.ndarray,
+            labels: np.ndarray,
+            point_loss: np.ndarray,
     ) -> tuple[np.ndarray, np.ndarray, bool]:
         mu1 = np.zeros((self.n_clusters, x1.shape[1]), dtype=float)
         mu2 = np.zeros((self.n_clusters, x2.shape[1]), dtype=float)
@@ -166,26 +184,15 @@ class CylindricalKMeans:
         # Re-seed empty clusters with the worst represented observations.
         farthest_order = np.argsort(-point_loss)
         farthest_ptr = 0
-        used_fallback_idx: set[int] = set()
 
         for k in range(self.n_clusters):
             mask = labels == k
             if not np.any(mask):
                 had_empty_reseed = True
-                while (
-                    farthest_ptr < x1.shape[0]
-                    and int(farthest_order[farthest_ptr]) in used_fallback_idx
-                ):
-                    farthest_ptr += 1
-
-                if farthest_ptr < x1.shape[0]:
-                    idx = int(farthest_order[farthest_ptr])
-                    farthest_ptr += 1
-                else:
-                    idx = int(self._rng.choice(x1.shape[0]))
+                idx = int(farthest_order[farthest_ptr])
+                farthest_ptr += 1
                 mu1[k] = x1[idx]
                 mu2[k] = x2[idx]
-                used_fallback_idx.add(idx)
                 continue
 
             mu1[k] = np.mean(x1[mask], axis=0)
@@ -209,6 +216,8 @@ class CylindricalKMeans:
         d1 = float(x1.shape[1])
         linear_scale = 0.5 / d1
 
+        resultant_length = self._mean_resultant_length(x2)
+
         best_mu1: Optional[np.ndarray] = None
         best_mu2: Optional[np.ndarray] = None
         best_labels: Optional[np.ndarray] = None
@@ -227,6 +236,7 @@ class CylindricalKMeans:
                     mu1,
                     mu2,
                     sigma1_inv,
+                    resultant_length,
                     linear_scale,
                 )
                 new_mu1, new_mu2, had_empty_reseed = self._update_centers(
@@ -236,19 +246,23 @@ class CylindricalKMeans:
                     point_loss,
                 )
 
-                mu_shift = mu1 - new_mu1
-                linear_shift = float(
-                    np.max(self._scaled_quadratic_form(mu_shift, sigma1_inv, scale=linear_scale))
+                linear_shift = self._euclidean_mahalanobis(
+                    mu1 - new_mu1,
+                    sigma1_inv,
+                    scale=linear_scale,
                 )
-                sphere_cos = np.sum(mu2 * new_mu2, axis=1)
-                sphere_shift = float(np.max(1.0 - np.clip(sphere_cos, -1.0, 1.0)))
-                center_shift = max(linear_shift, sphere_shift)
+                directional_shift = self._directional_mahalanobis(
+                    np.sum(mu2 * new_mu2, axis=1),
+                    resultant_length,
+                )
+
+                shift = float(np.max(linear_shift + self.lambda_ * directional_shift))
 
                 mu1 = new_mu1
                 mu2 = new_mu2
                 n_iter_run = it + 1
                 if (not had_empty_reseed) and (
-                    np.array_equal(new_labels, labels) or center_shift <= self.tol
+                        np.array_equal(new_labels, labels) or shift <= self.tol
                 ):
                     labels = new_labels
                     break
@@ -260,6 +274,7 @@ class CylindricalKMeans:
                 mu1,
                 mu2,
                 sigma1_inv,
+                resultant_length,
                 linear_scale,
             )
             final_inertia = float(np.sum(final_point_loss))
@@ -282,14 +297,16 @@ class CylindricalKMeans:
         self.linear_covariance_ = sigma1
         self.linear_precision_ = sigma1_inv
         self.linear_dimension_ = int(d1)
+        self.spherical_resultant_length_ = resultant_length
         return self
 
     def predict(self, x_euclid: Array, x_spherical: Array) -> np.ndarray:
         if (
-            self.cluster_centers_euclid_ is None
-            or self.cluster_centers_spherical_ is None
-            or self.linear_precision_ is None
-            or self.linear_dimension_ is None
+                self.cluster_centers_euclid_ is None
+                or self.cluster_centers_spherical_ is None
+                or self.linear_precision_ is None
+                or self.linear_dimension_ is None
+                or self.spherical_resultant_length_ is None
         ):
             raise RuntimeError("The model is not fitted yet. Call fit(...) first.")
 
@@ -312,6 +329,7 @@ class CylindricalKMeans:
             self.cluster_centers_euclid_,
             self.cluster_centers_spherical_,
             self.linear_precision_,
+            self.spherical_resultant_length_,
             linear_scale,
         )
         return labels
@@ -324,15 +342,15 @@ class CylindricalKMeans:
 
 
 def cylindrical_kmeans(
-    x_euclid: Array,
-    x_spherical: Array,
-    n_clusters: int,
-    *,
-    lambda_: float = 1.0,
-    max_iter: int = 100,
-    tol: float = 1e-6,
-    n_init: int = 10,
-    rng: RandomStateLike = None,
+        x_euclid: Array,
+        x_spherical: Array,
+        n_clusters: int,
+        *,
+        lambda_: float = 1.0,
+        max_iter: int = 100,
+        tol: float = 1e-6,
+        n_init: int = 10,
+        rng: RandomStateLike = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, float]:
     """
     Functional wrapper for cylindrical k-means.
@@ -358,10 +376,10 @@ def cylindrical_kmeans(
     )
     model.fit(x_euclid, x_spherical)
     if (
-        model.cluster_centers_euclid_ is None
-        or model.cluster_centers_spherical_ is None
-        or model.labels_ is None
-        or model.inertia_ is None
+            model.cluster_centers_euclid_ is None
+            or model.cluster_centers_spherical_ is None
+            or model.labels_ is None
+            or model.inertia_ is None
     ):
         raise RuntimeError("Cylindrical k-means did not produce a complete result.")
 
