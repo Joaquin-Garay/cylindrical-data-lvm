@@ -3,7 +3,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-import soccer_pattern_recognition as spr
+import cyl_lvm as spr
 
 D_GAUSS = 3
 D_VMF = 3

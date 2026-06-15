@@ -3,9 +3,9 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "soccer-pattern-recognition"
+name = "cylindrical-data-lvm"
 version = "0.0.0"
-description = "Soccer pattern recognition models"
+description = "Latent variable models for cylindrical data"
 readme = "README.md"
 requires-python = ">=3.11"
 

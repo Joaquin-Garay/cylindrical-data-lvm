@@ -1,4 +1,4 @@
-"""Top-level package API for soccer_pattern_recognition."""
+"""Top-level package API for cyl_lvm."""
 
 from importlib import import_module
 from typing import Any

@@ -6,7 +6,7 @@ import os
 import sys
 import runpy
 
-os.chdir("/Users/jgv/PycharmProjects/soccer-pattern-recognition")
+os.chdir("/Users/jgv/PycharmProjects/cylindrical-data-lvm")
 sys.path.insert(0, "src")
 
 sys.argv = [
@@ -45,7 +45,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-import soccer_pattern_recognition as spr
+import cyl_lvm as spr
 from experiment.synthetic_data import experiment_helper as mod
 
 
