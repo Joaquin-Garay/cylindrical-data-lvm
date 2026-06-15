@@ -1,2 +1,2 @@
-# soccer-pattern-recognition
-Spatio-temporal clustering of soccer actions
+# Latent Variable Models for Cylindrical Data
+
