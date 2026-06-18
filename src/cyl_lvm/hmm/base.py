@@ -126,19 +126,22 @@ class EmissionHMM(BaseHMM):
     def fit(self, X, lengths=None,
             *,
             warm_start: bool = False,
-            init_params: str = ""):
+            init_params: str = "") -> "EmissionHMM":
         X_array = np.asarray(X, dtype=float)
         if not warm_start:
-            return super().fit(X_array, lengths=lengths)
+            super().fit(X_array, lengths=lengths)
+            return self
         if not self._can_warm_start(X_array):
-            return super().fit(X_array, lengths=lengths)
+            super().fit(X_array, lengths=lengths)
+            return self
 
         original_init_params = self.init_params
         self.init_params = init_params
         try:
-            return super().fit(X_array, lengths=lengths)
+            super().fit(X_array, lengths=lengths)
         finally:
             self.init_params = original_init_params
+        return self
 
     def _init(self, X, lengths=None):
         super()._init(X, lengths)

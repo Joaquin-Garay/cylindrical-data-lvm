@@ -201,8 +201,22 @@ class MixtureModel(Distribution):
     def pdf(self, x):
         return np.exp(self.log_pdf(x))
 
-    def sample(self, n: int, rng: Optional[np.random.RandomState] = None) -> Array:
+    def sample(
+        self,
+        n: int,
+        rng: Optional[np.random.RandomState] = None,
+        *,
+        return_labels: bool = False,
+    ) -> Array | tuple[Array, Array]:
+        """
+        Draw samples from the mixture.
+
+        If ``return_labels`` is True, return ``(samples, labels)``, where
+        ``labels[i]`` is the component index used to generate ``samples[i]``.
+        """
         self._validate_n_samples(n)
+        if not isinstance(return_labels, (bool, np.bool_)):
+            raise TypeError("return_labels must be a boolean.")
         if self._weights is None:
             raise RuntimeError("Mixture weights are not initialized yet.")
 
@@ -224,6 +238,8 @@ class MixtureModel(Distribution):
 
         if out is None:
             raise RuntimeError("Sampling failed: no samples were generated.")
+        if return_labels:
+            return out, hidden_y
         return out
 
 
@@ -263,7 +279,7 @@ class MixtureModel(Distribution):
             verbose: bool = False,
             m_step_case: str = "classic",
             c_step_bool: bool = False,
-            ) -> None:
+            ) -> "MixtureModel":
         """
         Perform the Expectation-Maximization algorithm to fit a mixture model.
         It stops as soon as the absolute difference between two iterations is below the tolerance.
@@ -281,6 +297,7 @@ class MixtureModel(Distribution):
                       m_step_case,
                       c_step_bool,
                       verbose)
+        return self
 
     def n_free_params(self):
         """

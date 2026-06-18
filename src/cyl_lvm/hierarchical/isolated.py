@@ -19,7 +19,7 @@ class IsolatedTwoLayerMoM(TwoLayerMoM):
             verbose: bool = False,
             m_step_case: str = "classic",
             c_step_bool: bool = False,
-            ) -> None:
+            ) -> "IsolatedTwoLayerMoM":
         """
         Fit the two-layer model.
 
@@ -46,8 +46,8 @@ class IsolatedTwoLayerMoM(TwoLayerMoM):
 
         Returns
         -------
-        int
-            Total number of EM iterations (layer 1 + all layer-2 mixtures).
+        IsolatedTwoLayerMoM
+            The fitted model.
 
         Raises
         ------
@@ -104,5 +104,5 @@ class IsolatedTwoLayerMoM(TwoLayerMoM):
             layer2_counter += l2_comp_counter
 
         self.n_iter = layer1_counter + layer2_counter
-
+        return self
 

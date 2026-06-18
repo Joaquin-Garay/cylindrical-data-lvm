@@ -205,7 +205,7 @@ class TwoLayerMoM(Distribution):
             verbose: bool = False,
             m_step_case: str = "classic",
             c_step_bool: bool = False,
-            ) -> None:
+            ) -> "TwoLayerMoM":
         """
         Fit the two-layer mixture-of-mixtures model with joint EM.
 
@@ -325,6 +325,7 @@ class TwoLayerMoM(Distribution):
 
         self.logger = logger
         self.n_iter = n_iter
+        return self
 
     def sample(self, n: int, rng: Optional[np.random.RandomState] = None) -> Array:
         self._validate_n_samples(n)
