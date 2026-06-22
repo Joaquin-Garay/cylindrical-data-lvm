@@ -8,6 +8,7 @@ import numpy as np
 from hmmlearn.base import BaseHMM
 from sklearn.utils import check_random_state
 
+from ..core.types import Array
 from .emissions import BaseEmission
 
 
@@ -109,7 +110,7 @@ class EmissionHMM(BaseHMM):
             n_scalars.setdefault(symbol, 0)
         return n_scalars
 
-    def _can_warm_start(self, X: np.ndarray) -> bool:
+    def _can_warm_start(self, X: Array) -> bool:
         if X.ndim != 2:
             return False
         if not hasattr(self, "startprob_") or not hasattr(self, "transmat_"):

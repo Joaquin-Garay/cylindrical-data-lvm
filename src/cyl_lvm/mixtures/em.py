@@ -29,18 +29,18 @@ def e_step(model: "MixtureModel",
     ----------
     model : MixtureModel
         Mixture model with initialized component parameters and weights.
-    x : np.ndarray of shape (n_samples,) or (n_samples, n_features)
+    x : Array of shape (n_samples,) or (n_samples, n_features)
         Input samples.
 
     Returns
     -------
-    r : np.ndarray of shape (n_samples, n_components)
+    r : Array of shape (n_samples, n_components)
         Responsibilities for each sample/component.
     log_likelihood : float
         Total observed-data log-likelihood over all samples.
     expected_log_likelihood : float
         Expected complete-data log-likelihood under r.
-    log_px : np.ndarray of shape (n_samples,)
+    log_px : Array of shape (n_samples,)
         Per-sample log p(x_i).
 
     Raises

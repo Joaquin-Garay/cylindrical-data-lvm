@@ -5,11 +5,12 @@ from typing import Optional, Tuple
 import numpy as np
 
 from ..core.types import Array
+from .abstract_cylindrical import AbstractCylindrical
 from .base import Distribution
 from .expfam import MultivariateGaussian, VonMisesFisher
 
 
-class Cylindrical(Distribution):
+class Cylindrical(AbstractCylindrical, Distribution):
     """Cylindrical model with conditional Gaussian and directional vMF parts."""
 
     def __init__(self, d_gauss: int,
@@ -17,7 +18,9 @@ class Cylindrical(Distribution):
                  *,
                  mu_gauss: Optional[Array] = None,
                  cross_cov: Optional[Array] = None,
+                 cross_corr: Optional[Array] = None,
                  cond_cov: Optional[Array] = None,
+                 unconditional_gauss_cov: Optional[Array] = None,
                  mu_vmf: Optional[Array] = None,
                  kappa: Optional[float] = None):
 
@@ -29,31 +32,113 @@ class Cylindrical(Distribution):
             if mu_gauss is None
             else np.asarray(mu_gauss, dtype=float)
         )
-        self._cross_cov = (
-            np.ones((self._d_gauss, self._d_vmf), dtype=float)
-            if cross_cov is None
-            else np.asarray(cross_cov, dtype=float)
-        )
-        self._cond_cov = (
-            np.eye(self._d_gauss, dtype=float)
-            if cond_cov is None
-            else np.asarray(cond_cov, dtype=float)
-        )
+        if cross_cov is not None and cross_corr is not None:
+            raise ValueError("Provide only one of cross_cov or cross_corr.")
 
         vmf_mu = None if mu_vmf is None else np.asarray(mu_vmf, dtype=float)
         vmf_kappa = 1.0 if kappa is None else float(kappa)
         self._vmf = VonMisesFisher(self._d_vmf, mu=vmf_mu, kappa=vmf_kappa)
 
+        if cond_cov is not None and unconditional_gauss_cov is not None:
+            raise ValueError("Provide only one of cond_cov or unconditional_gauss_cov.")
+
+        if cross_corr is None:
+            self._cross_cov = (
+                np.ones((self._d_gauss, self._d_vmf), dtype=float)
+                if cross_cov is None
+                else np.asarray(cross_cov, dtype=float)
+            )
+        else:
+            cross_corr = self._validate_cross_corr(cross_corr)
+            if unconditional_gauss_cov is None:
+                cond_cov = (
+                    np.eye(self._d_gauss, dtype=float)
+                    if cond_cov is None
+                    else np.asarray(cond_cov, dtype=float)
+                )
+                cond_cov = self._validate_matrix(
+                    cond_cov,
+                    shape=(self._d_gauss, self._d_gauss),
+                    name="cond_cov",
+                    symmetric=True,
+                )
+                self._validate_positive_definite(cond_cov, name="cond_cov")
+                row_remainders = 1.0 - np.sum(cross_corr * cross_corr, axis=1)
+                if np.any(row_remainders <= 0.0):
+                    raise ValueError(
+                        "cross_corr row squared norms must be strictly less than 1 "
+                        "when deriving cross_cov from cond_cov."
+                    )
+                unconditional_diag = np.diag(cond_cov) / row_remainders
+            else:
+                unconditional_gauss_cov = self._validate_matrix(
+                    unconditional_gauss_cov,
+                    shape=(self._d_gauss, self._d_gauss),
+                    name="unconditional_gauss_cov",
+                    symmetric=True,
+                )
+                self._validate_positive_definite(
+                    unconditional_gauss_cov,
+                    name="unconditional_gauss_cov",
+                )
+                unconditional_diag = np.diag(unconditional_gauss_cov)
+
+            gauss_std = np.sqrt(unconditional_diag)
+            self._cross_cov = gauss_std[:, None] * cross_corr / np.sqrt(self._vmf.kappa)
+
+        if unconditional_gauss_cov is None:
+            self._cond_cov = (
+                np.eye(self._d_gauss, dtype=float)
+                if cond_cov is None
+                else np.asarray(cond_cov, dtype=float)
+            )
+        else:
+            self._cross_cov = self._validate_matrix(
+                self._cross_cov,
+                shape=(self._d_gauss, self._d_vmf),
+                name="cross_cov",
+            )
+            unconditional_gauss_cov = self._validate_matrix(
+                unconditional_gauss_cov,
+                shape=(self._d_gauss, self._d_gauss),
+                name="unconditional_gauss_cov",
+                symmetric=True,
+            )
+            self._validate_positive_definite(
+                unconditional_gauss_cov,
+                name="unconditional_gauss_cov",
+            )
+            self._cond_cov = (
+                unconditional_gauss_cov
+                - self._vmf.kappa * (self._cross_cov @ self._cross_cov.T)
+            )
+
+        self._validate_params()
+        self._cache()
         self._cond_gauss = MultivariateGaussian(
             self._d_gauss,
             mean=np.zeros(self._d_gauss, dtype=float),
             covariance=self._cond_cov.copy(),
         )
 
-        self._validate_params()
-        self._cache()
-
     # ---- Validation helpers ----
+    @staticmethod
+    def _validate_positive_definite(matrix: Array, *, name: str) -> None:
+        try:
+            np.linalg.cholesky(matrix)
+        except np.linalg.LinAlgError as e:
+            raise ValueError(f"{name} must be positive-definite.") from e
+
+    def _validate_cross_corr(self, cross_corr: Array) -> Array:
+        cross_corr = self._validate_matrix(
+            cross_corr,
+            shape=(self._d_gauss, self._d_vmf),
+            name="cross_corr",
+        )
+        if np.any(np.abs(cross_corr) > 1.0):
+            raise ValueError("cross_corr entries must be between -1 and 1.")
+        return cross_corr
+
     def _validate_params(self) -> None:
         self._mu_gauss = self._validate_vector(
             self._mu_gauss,
@@ -118,6 +203,11 @@ class Cylindrical(Distribution):
         self._validate_params()
 
     @property
+    def cross_corr(self) -> Array:
+        gauss_std = np.sqrt(np.diag(self.unconditional_gauss_cov))
+        return np.sqrt(self._vmf.kappa) * self._cross_cov / gauss_std[:, None]
+
+    @property
     def cond_cov(self) -> Array:
         return self._cond_cov.copy()
 
@@ -127,6 +217,11 @@ class Cylindrical(Distribution):
         self._validate_params()
         self._cache()
         self._cond_gauss.params = (np.zeros(self._d_gauss, dtype=float), self._cond_cov.copy())
+
+    @property
+    def unconditional_gauss_cov(self) -> Array:
+        cov = self._cond_cov + self._vmf.kappa * (self._cross_cov @ self._cross_cov.T)
+        return cov.copy()
 
     @property
     def cond_gauss(self) -> MultivariateGaussian:

@@ -5,15 +5,15 @@ from __future__ import annotations
 import numpy as np
 
 from .two_layer import TwoLayerMoM
-from ..core import _EPS
+from ..core import _EPS, ArrayLike
 
 
 class IsolatedTwoLayerMoM(TwoLayerMoM):
     """Two-layer MoM variant whose ``fit`` uses the isolated two-stage routine."""
 
     def fit(self,
-            layer1_data: np.ndarray,
-            layer2_data: np.ndarray,
+            layer1_data: ArrayLike,
+            layer2_data: ArrayLike,
             tol: float = 1e-4,
             max_iter: int = 1000,
             verbose: bool = False,
@@ -29,9 +29,9 @@ class IsolatedTwoLayerMoM(TwoLayerMoM):
 
         Parameters
         ----------
-        layer1_data : np.ndarray, shape (n_obs, d_layer1)
+        layer1_data : ArrayLike, shape (n_obs, d_layer1)
             First-layer observations.
-        layer2_data : np.ndarray, shape (n_obs, d_layer2)
+        layer2_data : ArrayLike, shape (n_obs, d_layer2)
             Second-layer observations aligned with `layer1_data`.
         tol : float, default=1e-4
             EM convergence tolerance.
@@ -105,4 +105,3 @@ class IsolatedTwoLayerMoM(TwoLayerMoM):
 
         self.n_iter = layer1_counter + layer2_counter
         return self
-

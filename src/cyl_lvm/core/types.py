@@ -1,10 +1,12 @@
 """Shared typing aliases."""
 
-import numpy.typing
+from typing import Any, TypeAlias
 
-try:  # Python >=3.10
-    from typing import TypeAlias
-except ImportError:  # pragma: no cover - Python <3.10 fallback
-    TypeAlias = type  # type: ignore[assignment]
+import numpy.typing as npt
 
-Array: TypeAlias = numpy.typing.NDArray
+# Convention:
+# - Array is the default annotation for NumPy arrays used by the library.
+# - ArrayLike is reserved for boundary APIs whose contract explicitly accepts
+#   lists, tuples, or other inputs that are coerced with np.asarray.
+Array: TypeAlias = npt.NDArray[Any]
+ArrayLike: TypeAlias = npt.ArrayLike

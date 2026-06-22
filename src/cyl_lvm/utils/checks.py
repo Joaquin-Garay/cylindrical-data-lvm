@@ -6,21 +6,23 @@ from typing import Sequence
 
 import numpy as np
 
+from ..core.types import Array
 
-def validate_sample_weight(x: np.ndarray, sample_weight: Sequence[float] | None) -> np.ndarray:
+
+def validate_sample_weight(x: Array, sample_weight: Sequence[float] | None) -> Array:
     """
     Validate and normalize sample weights.
 
     Parameters
     ----------
-    x : np.ndarray
+    x : Array
         Input samples with shape ``(n_samples, ...)``.
     sample_weight : Sequence[float] | None
         Optional nonnegative weights of length ``n_samples``.
 
     Returns
     -------
-    np.ndarray, shape (n_samples,)
+    Array, shape (n_samples,)
         Normalized sample weights that sum to 1.
 
     Raises

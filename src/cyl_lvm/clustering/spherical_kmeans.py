@@ -6,7 +6,7 @@ from typing import Optional, Union
 
 import numpy as np
 
-from ..core.types import Array
+from ..core.types import Array, ArrayLike
 
 
 RandomStateLike = Optional[Union[int, np.random.RandomState]]
@@ -22,7 +22,7 @@ def _resolve_rng(rng: RandomStateLike) -> np.random.RandomState:
     raise TypeError("rng must be None, an int seed, or np.random.RandomState.")
 
 
-def _validate_input(x: Array, *, n_clusters: int) -> np.ndarray:
+def _validate_input(x: ArrayLike, *, n_clusters: int) -> Array:
     arr = np.asarray(x, dtype=float)
     if arr.ndim != 2:
         raise ValueError("x must be a 2D array with shape (n_samples, n_features).")
@@ -74,21 +74,21 @@ class SphericalKMeans:
         self.n_init = int(n_init)
         self._rng = _resolve_rng(rng)
 
-        self.cluster_centers_: Optional[np.ndarray] = None
-        self.labels_: Optional[np.ndarray] = None
+        self.cluster_centers_: Optional[Array] = None
+        self.labels_: Optional[Array] = None
         self.score_: Optional[float] = None
         self.n_iter_: Optional[int] = None
 
-    def _init_centers(self, x: np.ndarray) -> np.ndarray:
+    def _init_centers(self, x: Array) -> Array:
         idx = self._rng.choice(x.shape[0], self.n_clusters, replace=False)
         return x[idx].copy()
 
     def _update_centers(
         self,
-        x: np.ndarray,
-        labels: np.ndarray,
-        sims: np.ndarray,
-    ) -> tuple[np.ndarray, bool]:
+        x: Array,
+        labels: Array,
+        sims: Array,
+    ) -> tuple[Array, bool]:
         centers = np.zeros((self.n_clusters, x.shape[1]), dtype=float)
         had_empty_reseed = False
         # Re-seed empty clusters with least well represented points.
@@ -124,11 +124,11 @@ class SphericalKMeans:
 
         return centers, had_empty_reseed
 
-    def fit(self, x: Array) -> "SphericalKMeans":
+    def fit(self, x: ArrayLike) -> "SphericalKMeans":
         x_unit = _validate_input(x, n_clusters=self.n_clusters)
 
-        best_centers: Optional[np.ndarray] = None
-        best_labels: Optional[np.ndarray] = None
+        best_centers: Optional[Array] = None
+        best_labels: Optional[Array] = None
         best_score = -np.inf
         best_n_iter = 0
 
@@ -173,14 +173,14 @@ class SphericalKMeans:
         self.n_iter_ = int(best_n_iter)
         return self
 
-    def predict(self, x: Array) -> np.ndarray:
+    def predict(self, x: ArrayLike) -> Array:
         if self.cluster_centers_ is None:
             raise RuntimeError("The model is not fitted yet. Call fit(...) first.")
         x_unit = _validate_input(x, n_clusters=1)
         sims = x_unit @ self.cluster_centers_.T
         return np.argmax(sims, axis=1)
 
-    def fit_predict(self, x: Array) -> np.ndarray:
+    def fit_predict(self, x: ArrayLike) -> Array:
         self.fit(x)
         if self.labels_ is None:
             raise RuntimeError("fit(...) finished without labels.")
@@ -188,22 +188,22 @@ class SphericalKMeans:
 
 
 def spherical_kmeans(
-    x: Array,
+    x: ArrayLike,
     n_clusters: int,
     *,
     max_iter: int = 100,
     tol: float = 1e-6,
     n_init: int = 10,
     rng: RandomStateLike = None,
-) -> tuple[np.ndarray, np.ndarray, float]:
+) -> tuple[Array, Array, float]:
     """
     Functional wrapper for spherical k-means.
 
     Returns
     -------
-    labels : np.ndarray, shape (n_samples,)
+    labels : Array, shape (n_samples,)
         Hard cluster assignments.
-    centers : np.ndarray, shape (n_clusters, n_features)
+    centers : Array, shape (n_clusters, n_features)
         Unit-norm cluster centers.
     score : float
         Sum of maximum cosine similarities over samples.

@@ -7,6 +7,8 @@ from collections.abc import Mapping
 import numpy as np
 import pandas as pd
 
+from ..core.types import Array
+
 __all__ = ["consolidate", "add_noise", "prepare_data"]
 
 _FEATURE_COLUMNS = ["action_type_id", "start_x", "start_y", "cos_angle", "sin_angle"]
@@ -28,7 +30,7 @@ def _require_columns(df: pd.DataFrame, required: set[str]) -> None:
         raise ValueError(f"Missing required columns: {missing}.")
 
 
-def _empty_features() -> tuple[np.ndarray, np.ndarray]:
+def _empty_features() -> tuple[Array, Array]:
     return np.empty((0, len(_FEATURE_COLUMNS)), dtype=float), np.empty(0, dtype=int)
 
 
@@ -138,16 +140,16 @@ def prepare_data(
     min_sequence_length: int = 3,
     sigma: float = 0.5,
     random_state: int | None = None,
-) -> tuple[np.ndarray, np.ndarray]:
+) -> tuple[Array, Array]:
     """
     Build model features and sequence lengths from action-level SPADL data.
 
     Returns
     -------
-    X : np.ndarray
+    X : Array
         Feature matrix with columns:
         [action_type_id, start_x, start_y, cos_angle, sin_angle]
-    lengths : np.ndarray
+    lengths : Array
         Possession sequence lengths in order of poss_id.
     """
     if min_sequence_length < 1:

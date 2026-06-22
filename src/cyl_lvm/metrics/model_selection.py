@@ -29,7 +29,7 @@ def _num_free_params_for_component(comp: ExponentialFamily | Cylindrical) -> int
         return comp.d
     if isinstance(comp, IndCylindrical):
         # composite: count the underlying parts
-        return _num_free_params_for_component(comp.gaussian) + _num_free_params_for_component(comp.vonmises)
+        return _num_free_params_for_component(comp.gaussian) + _num_free_params_for_component(comp.vmf)
     if isinstance(comp, Cylindrical):
         d_g = comp.d_gauss
         d_v = comp.d_vmf

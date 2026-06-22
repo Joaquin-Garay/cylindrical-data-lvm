@@ -7,12 +7,13 @@ from typing import Optional, Tuple
 import numpy as np
 
 from ...core.types import Array
+from ..abstract_cylindrical import AbstractCylindrical
 from .base import ExponentialFamily
 from .multi_gaussian import MultivariateGaussian
 from .vmf import VonMisesFisher
 
 # ----- Independent Gaussian-vonMises distribution -----
-class IndCylindrical(ExponentialFamily):
+class IndCylindrical(AbstractCylindrical, ExponentialFamily):
     """
     p(x_1,x_2) = Gauss(x_1) * vMF(x_2)
     """
@@ -82,6 +83,35 @@ class IndCylindrical(ExponentialFamily):
             self._vmf.natural_param,
         )
 
+    # Getter in Cylindrical-style signature
+    @property
+    def cond_cov(self) -> Array:
+        return self._gaussian.covariance
+
+    @property
+    def unconditional_gauss_cov(self) -> Array:
+        return self._gaussian.covariance
+
+    @property
+    def mu_gauss(self) -> Array:
+        return self._gaussian.mean
+
+    @property
+    def cross_cov(self) -> Array:
+        return np.zeros(shape=(self._d_gauss, self._d_vmf))
+
+    @property
+    def cross_corr(self) -> Array:
+        return np.zeros(shape=(self._d_gauss, self._d_vmf))
+
+    @property
+    def vmf(self):
+        return self._vmf
+
+    @property
+    def gaussian(self):
+        return self._gaussian
+
     @property
     def dual_param(self) -> Tuple[Array, Array]:
         return self._gaussian.dual_param, self._vmf.dual_param
@@ -121,6 +151,3 @@ class IndCylindrical(ExponentialFamily):
     def vmf(self) -> VonMisesFisher:
         return self._vmf
 
-    @property
-    def vonmises(self) -> VonMisesFisher:
-        return self._vmf

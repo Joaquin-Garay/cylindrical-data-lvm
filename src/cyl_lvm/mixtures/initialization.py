@@ -23,7 +23,7 @@ def _all_cylindrical_components(model: "MixtureModel") -> bool:
     return all(isinstance(comp, (Cylindrical, IndCylindrical)) for comp in model.components)
 
 
-def _split_cylindrical_blocks(model: "MixtureModel", x: Array) -> tuple[np.ndarray, np.ndarray]:
+def _split_cylindrical_blocks(model: "MixtureModel", x: Array) -> tuple[Array, Array]:
     x = np.asarray(x, dtype=float)
     if x.ndim != 2:
         raise ValueError("Cylindrical k-means initialization expects x with shape (n_samples, n_features).")

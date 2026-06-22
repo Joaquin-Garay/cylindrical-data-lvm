@@ -6,6 +6,8 @@ from typing import TYPE_CHECKING, Any, Callable, Optional, Sequence
 
 import numpy as np
 
+from ..core.types import Array
+
 if TYPE_CHECKING:
     from ..mixtures.mixture import MixtureModel
     from ..hierarchical import TwoLayerMoM
@@ -68,7 +70,7 @@ def _build_cv_splits(
         cv: int,
         shuffle: bool,
         rng: np.random.RandomState,
-        ) -> list[tuple[np.ndarray, np.ndarray]]:
+        ) -> list[tuple[Array, Array]]:
     indices = np.arange(n_obs, dtype=int)
     if shuffle:
         indices = rng.permutation(indices)
@@ -76,7 +78,7 @@ def _build_cv_splits(
         return [(indices, indices)]
 
     folds = np.array_split(indices, cv)
-    splits: list[tuple[np.ndarray, np.ndarray]] = []
+    splits: list[tuple[Array, Array]] = []
     for fold_idx in range(cv):
         val_idx = folds[fold_idx]
         if val_idx.size == 0:
@@ -90,7 +92,7 @@ def _build_cv_splits(
     return splits
 
 
-def _selection_score(values: np.ndarray, selection: str, *, higher_is_better: bool) -> float:
+def _selection_score(values: Array, selection: str, *, higher_is_better: bool) -> float:
     if selection == "best":
         return float(np.max(values) if higher_is_better else np.min(values))
     if selection == "mean_plus_2std":

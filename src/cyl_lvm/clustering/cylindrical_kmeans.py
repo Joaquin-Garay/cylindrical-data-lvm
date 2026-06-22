@@ -6,7 +6,7 @@ from typing import Optional, Union
 
 import numpy as np
 
-from ..core.types import Array
+from ..core.types import Array, ArrayLike
 
 RandomStateLike = Optional[Union[int, np.random.RandomState]]
 _RESULTANT_DENOM_EPS = 1e-12
@@ -22,7 +22,7 @@ def _resolve_rng(rng: RandomStateLike) -> np.random.RandomState:
     raise TypeError("rng must be None, an int seed, or np.random.RandomState.")
 
 
-def _as_2d(x: Array, *, name: str) -> np.ndarray:
+def _as_2d(x: ArrayLike, *, name: str) -> Array:
     arr = np.asarray(x, dtype=float)
     if arr.ndim == 1:
         arr = arr[:, None]
@@ -32,11 +32,11 @@ def _as_2d(x: Array, *, name: str) -> np.ndarray:
 
 
 def _validate_inputs(
-        x_euclid: Array,
-        x_spherical: Array,
+        x_euclid: ArrayLike,
+        x_spherical: ArrayLike,
         *,
         n_clusters: int,
-) -> tuple[np.ndarray, np.ndarray]:
+) -> tuple[Array, Array]:
     x1 = _as_2d(x_euclid, name="x_euclid")
     x2 = _as_2d(x_spherical, name="x_spherical")
 
@@ -100,18 +100,18 @@ class CylindricalKMeans:
         self.n_init = int(n_init)
         self._rng = _resolve_rng(rng)
 
-        self.cluster_centers_euclid_: Optional[np.ndarray] = None
-        self.cluster_centers_spherical_: Optional[np.ndarray] = None
-        self.labels_: Optional[np.ndarray] = None
+        self.cluster_centers_euclid_: Optional[Array] = None
+        self.cluster_centers_spherical_: Optional[Array] = None
+        self.labels_: Optional[Array] = None
         self.inertia_: Optional[float] = None
         self.n_iter_: Optional[int] = None
-        self.linear_covariance_: Optional[np.ndarray] = None
-        self.linear_precision_: Optional[np.ndarray] = None
+        self.linear_covariance_: Optional[Array] = None
+        self.linear_precision_: Optional[Array] = None
         self.linear_dimension_: Optional[int] = None
         self.spherical_resultant_length_: Optional[float] = None
 
     @staticmethod
-    def _linear_covariance_and_precision(x1: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    def _linear_covariance_and_precision(x1: Array) -> tuple[Array, Array]:
         centered = x1 - np.mean(x1, axis=0, keepdims=True)
         denom = float(max(x1.shape[0], 1))
         covariance = (centered.T @ centered) / denom
@@ -121,47 +121,47 @@ class CylindricalKMeans:
         return covariance, precision
 
     @staticmethod
-    def _mean_resultant_length(x2: np.ndarray) -> float:
+    def _mean_resultant_length(x2: Array) -> float:
         if x2.shape[0] == 0:
             return 0.0
         return min(float(np.linalg.norm(np.mean(x2, axis=0), ord=2)), 1.0 - 1e-6)
 
     @staticmethod
     def _euclidean_mahalanobis(
-            diff: np.ndarray,
-            precision: np.ndarray,
+            diff: Array,
+            precision: Array,
             *,
             scale: float,
-    ) -> np.ndarray:
+    ) -> Array:
         return scale * np.sum((diff @ precision) * diff, axis=-1)
 
     @staticmethod
     def _directional_mahalanobis(
-            inner_product: np.ndarray,
+            inner_product: Array,
             resultant_length: float,
-    ) -> np.ndarray:
+    ) -> Array:
         cos_sim = np.clip(inner_product, -1.0, 1.0)
         denom = max(1.0 - resultant_length * resultant_length, _RESULTANT_DENOM_EPS)
         return (1.0 - cos_sim) / denom
 
     def _init_centers(
             self,
-            x1: np.ndarray,
-            x2: np.ndarray,
-    ) -> tuple[np.ndarray, np.ndarray]:
+            x1: Array,
+            x2: Array,
+    ) -> tuple[Array, Array]:
         idx = self._rng.choice(x1.shape[0], self.n_clusters, replace=False)
         return x1[idx].copy(), x2[idx].copy()
 
     def _assign(
             self,
-            x1: np.ndarray,
-            x2: np.ndarray,
-            mu1: np.ndarray,
-            mu2: np.ndarray,
-            sigma1_inv: np.ndarray,
+            x1: Array,
+            x2: Array,
+            mu1: Array,
+            mu2: Array,
+            sigma1_inv: Array,
             resultant_length: float,
             linear_scale: float,
-    ) -> tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[Array, Array]:
         diff = x1[:, None, :] - mu1[None, :, :]
         linear_term = self._euclidean_mahalanobis(diff, sigma1_inv, scale=linear_scale)
         dir_term = self._directional_mahalanobis(x2 @ mu2.T, resultant_length)
@@ -172,11 +172,11 @@ class CylindricalKMeans:
 
     def _update_centers(
             self,
-            x1: np.ndarray,
-            x2: np.ndarray,
-            labels: np.ndarray,
-            point_loss: np.ndarray,
-    ) -> tuple[np.ndarray, np.ndarray, bool]:
+            x1: Array,
+            x2: Array,
+            labels: Array,
+            point_loss: Array,
+    ) -> tuple[Array, Array, bool]:
         mu1 = np.zeros((self.n_clusters, x1.shape[1]), dtype=float)
         mu2 = np.zeros((self.n_clusters, x2.shape[1]), dtype=float)
         had_empty_reseed = False
@@ -206,7 +206,7 @@ class CylindricalKMeans:
 
         return mu1, mu2, had_empty_reseed
 
-    def fit(self, x_euclid: Array, x_spherical: Array) -> "CylindricalKMeans":
+    def fit(self, x_euclid: ArrayLike, x_spherical: ArrayLike) -> "CylindricalKMeans":
         x1, x2 = _validate_inputs(
             x_euclid,
             x_spherical,
@@ -218,9 +218,9 @@ class CylindricalKMeans:
 
         resultant_length = self._mean_resultant_length(x2)
 
-        best_mu1: Optional[np.ndarray] = None
-        best_mu2: Optional[np.ndarray] = None
-        best_labels: Optional[np.ndarray] = None
+        best_mu1: Optional[Array] = None
+        best_mu2: Optional[Array] = None
+        best_labels: Optional[Array] = None
         best_inertia = np.inf
         best_n_iter = 0
 
@@ -300,7 +300,7 @@ class CylindricalKMeans:
         self.spherical_resultant_length_ = resultant_length
         return self
 
-    def predict(self, x_euclid: Array, x_spherical: Array) -> np.ndarray:
+    def predict(self, x_euclid: ArrayLike, x_spherical: ArrayLike) -> Array:
         if (
                 self.cluster_centers_euclid_ is None
                 or self.cluster_centers_spherical_ is None
@@ -334,7 +334,7 @@ class CylindricalKMeans:
         )
         return labels
 
-    def fit_predict(self, x_euclid: Array, x_spherical: Array) -> np.ndarray:
+    def fit_predict(self, x_euclid: ArrayLike, x_spherical: ArrayLike) -> Array:
         self.fit(x_euclid, x_spherical)
         if self.labels_ is None:
             raise RuntimeError("fit(...) finished without labels.")
@@ -342,8 +342,8 @@ class CylindricalKMeans:
 
 
 def cylindrical_kmeans(
-        x_euclid: Array,
-        x_spherical: Array,
+        x_euclid: ArrayLike,
+        x_spherical: ArrayLike,
         n_clusters: int,
         *,
         lambda_: float = 1.0,
@@ -351,17 +351,17 @@ def cylindrical_kmeans(
         tol: float = 1e-6,
         n_init: int = 10,
         rng: RandomStateLike = None,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, float]:
+) -> tuple[Array, Array, Array, float]:
     """
     Functional wrapper for cylindrical k-means.
 
     Returns
     -------
-    labels : np.ndarray, shape (n_samples,)
+    labels : Array, shape (n_samples,)
         Hard cluster assignments.
-    centers_euclid : np.ndarray, shape (n_clusters, d1)
+    centers_euclid : Array, shape (n_clusters, d1)
         Euclidean centroids.
-    centers_spherical : np.ndarray, shape (n_clusters, d2)
+    centers_spherical : Array, shape (n_clusters, d2)
         Unit-norm spherical centroids.
     inertia : float
         Sum of assignment losses.

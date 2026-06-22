@@ -1,5 +1,6 @@
 """Distribution interfaces and implementations."""
 
+from .abstract_cylindrical import AbstractCylindrical
 from .base import Distribution
 from .cylindrical import Cylindrical
 from .discrete import Categorical
@@ -13,6 +14,7 @@ from .expfam import (
 )
 
 __all__ = [
+    "AbstractCylindrical",
     "Distribution",
     "Cylindrical",
     "Categorical",

@@ -62,6 +62,14 @@ class MultivariateGaussian(ExponentialFamily):
         self._cache()
 
     @property
+    def mean(self) -> Array:
+        return self._mean.copy()
+
+    @property
+    def covariance(self) -> Array:
+        return self._covariance.copy()
+
+    @property
     def natural_param(self):
         theta_1 = np.linalg.solve(self._covariance, self._mean)
         theta_2 = -0.5 * np.linalg.inv(self._covariance)

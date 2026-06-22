@@ -18,6 +18,9 @@ __all__ = [
     "SoccerTwoLayerMoM",
     "calibrate_mom_by_cv_grid_search",
     "calibrate_mixture_by_cv_grid_search",
+    "adjusted_rand_index",
+    "ari",
+    "cylmix_comparison",
     "consolidate",
     "add_noise",
     "prepare_data",
@@ -30,6 +33,7 @@ __all__ = [
     "EmissionHMM",
     "GaussianHMM",
     "TwoLayerHMM",
+    "AbstractCylindrical",
     "Distribution",
     "Categorical",
     "ExponentialFamily",
@@ -97,6 +101,17 @@ def __getattr__(name: str) -> Any:
         globals()[name] = calibrate_mixture_by_cv_grid_search
         return calibrate_mixture_by_cv_grid_search
 
+    if name in {"adjusted_rand_index", "ari", "cylmix_comparison"}:
+        from .metrics import adjusted_rand_index, ari, cylmix_comparison
+
+        _symbols = {
+            "adjusted_rand_index": adjusted_rand_index,
+            "ari": ari,
+            "cylmix_comparison": cylmix_comparison,
+        }
+        globals().update(_symbols)
+        return _symbols[name]
+
     if name in {"consolidate", "add_noise", "prepare_data", "save_spadl_h5"}:
         from .utils import add_noise, consolidate, prepare_data, save_spadl_h5
 
@@ -144,6 +159,7 @@ def __getattr__(name: str) -> Any:
         return _symbols[name]
 
     if name in {
+        "AbstractCylindrical",
         "Distribution",
         "Categorical",
         "ExponentialFamily",
@@ -155,6 +171,7 @@ def __getattr__(name: str) -> Any:
         "IndCylindrical",
     }:
         from .distributions import (
+            AbstractCylindrical,
             Categorical,
             Cylindrical,
             Distribution,
@@ -167,6 +184,7 @@ def __getattr__(name: str) -> Any:
         )
 
         _symbols = {
+            "AbstractCylindrical": AbstractCylindrical,
             "Distribution": Distribution,
             "Categorical": Categorical,
             "ExponentialFamily": ExponentialFamily,
