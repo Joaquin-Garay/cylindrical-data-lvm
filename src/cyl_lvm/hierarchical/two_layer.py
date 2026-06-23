@@ -489,3 +489,7 @@ class TwoLayerMoM(Distribution):
                           + log_prior_layer2 + log_expfam_layer2).sum()
 
         return penalty - 2.0 * complete_data_likelihood
+
+    def score(self, layer1_data: Array, layer2_data: Array) -> float:
+        """Average log-likelihood per sample (sklearn-style)."""
+        return float(self.log_pdf(layer1_data, layer2_data).mean())
