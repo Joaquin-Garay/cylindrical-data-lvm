@@ -17,12 +17,15 @@ from .common import (
     unit,
 )
 from .plots import (
+    CYLMIX_COMPARISON_METRICS,
+    cylmix_comparison_dataframe,
     _plot_cross_corr_matrix_grid,
     _set_axes_equal_2d,
     _set_axes_equal_3d,
     _sync_2d_axes,
     plot_cross_corr_matrices,
     plot_cross_corr_model_vs_generator,
+    plot_cylmix_comparison_metrics,
     plot_cylindrical_components_2d,
     plot_cylindrical_components_3d,
     plot_mixing_weights_model_vs_generator,
@@ -32,13 +35,16 @@ from .plots import (
 )
 
 __all__ = [
+    "CYLMIX_COMPARISON_METRICS",
     "align_cylindrical_mixture_to_generator",
     "cylindrical_mixture_builder",
+    "cylmix_comparison_dataframe",
     "ind_cylindrical_mixture_builder",
     "mom_builder",
     "mom_iso_builder",
     "plot_cross_corr_matrices",
     "plot_cross_corr_model_vs_generator",
+    "plot_cylmix_comparison_metrics",
     "plot_cylindrical_components_2d",
     "plot_cylindrical_components_3d",
     "plot_mixing_weights_model_vs_generator",

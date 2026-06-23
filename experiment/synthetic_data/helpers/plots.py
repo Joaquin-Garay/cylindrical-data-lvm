@@ -1,6 +1,9 @@
 """Plotting helpers for synthetic data experiments."""
 
+from collections.abc import Mapping
+
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 from cyl_lvm.mixtures import MixtureModel
 
@@ -11,6 +14,185 @@ from .common import (
     _mom_cross_corr_matrices,
     _safe_weights,
 )
+
+
+CYLMIX_COMPARISON_METRICS = (
+    "cond_cov",
+    "cross_cov",
+    "mu_gauss",
+    "mu_vmf",
+    "kappa_vmf",
+)
+
+
+def cylmix_comparison_dataframe(
+    comparisons,
+    *,
+    label=None,
+    metrics=CYLMIX_COMPARISON_METRICS,
+):
+    """
+    Convert one or more ``cylmix_comparison`` results into a dataframe.
+
+    ``comparisons`` can be either:
+    - one comparison dictionary returned by ``clvm.cylmix_comparison``
+    - a mapping from result labels to comparison dictionaries
+    """
+    metrics = tuple(metrics)
+    if not metrics:
+        raise ValueError("metrics must contain at least one metric name.")
+
+    if _is_cylmix_comparison_result(comparisons, metrics):
+        comparison_items = [(label or "comparison", comparisons)]
+    elif isinstance(comparisons, Mapping):
+        comparison_items = list(comparisons.items())
+    else:
+        raise TypeError(
+            "comparisons must be a cylmix_comparison result or a mapping "
+            "from labels to cylmix_comparison results."
+        )
+
+    rows = []
+    for comparison_label, comparison in comparison_items:
+        _validate_cylmix_comparison_result(comparison, metrics, name=str(comparison_label))
+        matching = list(comparison["matching"])
+
+        for row_idx, _ in enumerate(matching):
+            row = {
+                "comparison": str(comparison_label),
+            }
+            for metric in metrics:
+                row[metric] = float(comparison[metric][row_idx])
+            rows.append(row)
+
+    return pd.DataFrame(
+        rows,
+        columns=["comparison", *metrics],
+    )
+
+
+def plot_cylmix_comparison_metrics(
+    comparison_df,
+    *,
+    metrics=CYLMIX_COMPARISON_METRICS,
+    max_cols=3,
+    figsize=None,
+    sharey=False,
+    show=True,
+    return_handles=False,
+):
+    """
+    Plot per-component cylindrical-mixture comparison metrics.
+
+    Pass the dataframe returned by ``cylmix_comparison_dataframe``. A raw
+    ``cylmix_comparison`` result, or a mapping of labels to results, is also
+    accepted and converted internally.
+    """
+    if not isinstance(comparison_df, pd.DataFrame):
+        comparison_df = cylmix_comparison_dataframe(comparison_df, metrics=metrics)
+
+    metrics = tuple(metrics)
+    _validate_cylmix_comparison_dataframe(comparison_df, metrics)
+    if not isinstance(max_cols, int) or max_cols < 1:
+        raise ValueError("max_cols must be an integer >= 1.")
+
+    plot_df = comparison_df.copy()
+    plot_df["_component"] = plot_df.groupby("comparison", sort=False).cumcount()
+
+    n_metrics = len(metrics)
+    n_cols = min(max_cols, n_metrics)
+    n_rows = int(np.ceil(n_metrics / n_cols))
+    if figsize is None:
+        figsize = (4.0 * n_cols, 3.0 * n_rows)
+
+    fig, axes = plt.subplots(
+        n_rows,
+        n_cols,
+        figsize=figsize,
+        squeeze=False,
+        sharey=sharey,
+        constrained_layout=True,
+    )
+
+    for ax_idx, metric in enumerate(metrics):
+        ax = axes.ravel()[ax_idx]
+        metric_df = plot_df.pivot_table(
+            index="_component",
+            columns="comparison",
+            values=metric,
+            aggfunc="first",
+            sort=False,
+        )
+        metric_df.plot(kind="bar", ax=ax, width=0.8)
+        ax.set_title(metric)
+        ax.set_xlabel("Component")
+        ax.set_ylabel("Difference")
+        ax.tick_params(axis="x", rotation=0)
+        ax.grid(axis="y", alpha=0.2)
+
+    for ax in axes.ravel()[n_metrics:]:
+        ax.axis("off")
+
+    handles, labels = axes.ravel()[0].get_legend_handles_labels()
+    for ax in axes.ravel():
+        legend = ax.get_legend()
+        if legend is not None:
+            legend.remove()
+    if handles:
+        fig.legend(
+            handles,
+            labels,
+            loc="upper center",
+            bbox_to_anchor=(0.5, 1.0),
+            ncols=len(labels),
+        )
+        layout_engine = fig.get_layout_engine()
+        if layout_engine is not None:
+            layout_engine.set(rect=(0.0, 0.0, 1.0, 0.92))
+
+    if show:
+        plt.show()
+
+    if return_handles:
+        return fig, axes
+
+    plt.close(fig)
+    return None
+
+
+def _is_cylmix_comparison_result(value, metrics):
+    return (
+        isinstance(value, Mapping)
+        and "matching" in value
+        and all(metric in value for metric in metrics)
+    )
+
+
+def _validate_cylmix_comparison_result(comparison, metrics, *, name):
+    if not _is_cylmix_comparison_result(comparison, metrics):
+        raise ValueError(f"{name} must be a cylmix_comparison result.")
+
+    matching = list(comparison["matching"])
+    n_rows = len(matching)
+    for metric in metrics:
+        values = comparison[metric]
+        if len(values) != n_rows:
+            raise ValueError(
+                f"{name}[{metric!r}] must have the same length as "
+                f"{name}['matching']; got {len(values)} and {n_rows}."
+            )
+
+
+def _validate_cylmix_comparison_dataframe(comparison_df, metrics):
+    required_columns = {"comparison", *metrics}
+    missing_columns = sorted(required_columns.difference(comparison_df.columns))
+    if missing_columns:
+        raise ValueError(
+            "comparison_df is missing required columns: "
+            + ", ".join(missing_columns)
+        )
+    if comparison_df.empty:
+        raise ValueError("comparison_df must contain at least one row.")
 
 
 def _set_axes_equal_3d(ax):
