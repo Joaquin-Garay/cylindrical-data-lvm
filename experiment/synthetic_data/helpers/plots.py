@@ -2,6 +2,7 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
+from cyl_lvm.mixtures import MixtureModel
 
 from .common import (
     _extract_cross_corr_matrices,
@@ -100,6 +101,81 @@ def _plot_cross_corr_matrix_grid(
         axes[row, col].axis("off")
 
     return fig, axes, im
+
+
+def _mixture_weights(mixture, *, name):
+    if not isinstance(mixture, MixtureModel):
+        raise ValueError(f"{name} must be a MixtureModel instance.")
+
+    n_components = len(mixture.components)
+    if n_components == 0:
+        raise ValueError(f"{name} must have at least one component.")
+
+    weights = _safe_weights(mixture)
+    if weights is None:
+        raise ValueError(f"{name} weights are not initialized or are not a 1D vector.")
+    if weights.size != n_components:
+        raise ValueError(
+            f"{name} weights length must match the number of components; "
+            f"got {weights.size} weights and {n_components} components."
+        )
+    return weights
+
+
+def _plot_mixing_weights_bar(ax, weights, *, title):
+    x = np.arange(weights.size)
+    cmap = plt.cm.tab10
+    colors = [cmap(i % 10) for i in x]
+
+    ax.bar(x, weights, color=colors)
+    ax.set_title(str(title))
+    ax.set_xlabel("Component")
+    ax.set_ylabel("Mixing weight")
+    ax.set_xticks(x)
+    ax.set_ylim(0.0, max(1.0, float(np.max(weights)) * 1.1))
+    ax.grid(axis="y", alpha=0.2)
+
+
+def plot_mixing_weights_model_vs_generator(
+    model,
+    generator,
+    *,
+    model_title=None,
+    generator_title="Generator",
+    title=None,
+    figsize=(8, 3),
+    share_ylim=True,
+):
+    """
+    Plot model and generator mixing weights in a 1x2 bar-plot layout.
+
+    Bar colors follow the same tab10 component order used by the parameter
+    plotters.
+    """
+    if model_title is None:
+        model_title = "Model" if title is None else str(title)
+
+    model_weights = _mixture_weights(model, name="model")
+    generator_weights = _mixture_weights(generator, name="generator")
+
+    fig, axes = plt.subplots(
+        1,
+        2,
+        figsize=figsize,
+        squeeze=False,
+        constrained_layout=True,
+    )
+    left_ax, right_ax = axes[0]
+
+    _plot_mixing_weights_bar(left_ax, model_weights, title=model_title)
+    _plot_mixing_weights_bar(right_ax, generator_weights, title=generator_title)
+
+    if share_ylim:
+        ymax = max(left_ax.get_ylim()[1], right_ax.get_ylim()[1])
+        left_ax.set_ylim(0.0, ymax)
+        right_ax.set_ylim(0.0, ymax)
+
+    return fig, axes[0]
 
 
 def plot_cylindrical_components_3d(
