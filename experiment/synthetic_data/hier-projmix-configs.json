@@ -1,0 +1,3663 @@
+{
+  "schema_version": 1,
+  "configuration_name": "hier-projmix-configs",
+  "generator_family": "hierarchical_projected_gaussian",
+  "construction": {
+    "source_design": "Adapted from projmix-configs while replacing direct latent Gaussian cross-block covariance by a two-layer latent-regime construction.",
+    "model_definition": "p(x_linear,x_directional)=sum_j pi_j N(x_linear;mu_j,Sigma_j) sum_k alpha_jk PG(x_directional;eta_jk,Omega_jk), with K=3 and L=2.",
+    "factor_grid": {
+      "dimensionality": [
+        "2d",
+        "3d"
+      ],
+      "component_separability": [
+        "low",
+        "high"
+      ],
+      "regime_directional_dependence": [
+        "strong",
+        "weak",
+        "independent"
+      ],
+      "n_experiment_cases": 12
+    },
+    "first_layer_rule": {
+      "n_components": 3,
+      "mixture_weights": [
+        0.36,
+        0.34,
+        0.3
+      ],
+      "low_means_and_covariances": "Reuse the linear blocks of the original semi-projected-Gaussian configuration.",
+      "high_separability_mean_rule": "Scale every first-layer mean offset from the unweighted low-case center by 6.0; keep first-layer covariances fixed."
+    },
+    "second_layer_rule": {
+      "components_per_first_layer_regime": 2,
+      "conditional_weights": [
+        0.58,
+        0.42
+      ],
+      "conditional_weights_shared_across_regimes": true,
+      "pre_projection_mean_norms_by_subtype": [
+        1.04,
+        0.98
+      ],
+      "low_subtype_offsets_degrees_from_regime_center": [
+        -11.0,
+        11.0
+      ],
+      "strong_regime_center_offsets_degrees": [
+        -25.0,
+        0.0,
+        25.0
+      ],
+      "weak_regime_offset_scale": 0.3333333333333333,
+      "independent_regime_offset_scale": 0.0,
+      "high_separability_angle_rule": "Multiply every low-case angular offset from the common anchor by 2.25, so all nonzero pairwise angles among the six pre-projection mean directions are multiplied by 2.25.",
+      "covariance_rule": "Pre-projection directional covariance depends only on subtype k and is shared across regimes j and all factor levels.",
+      "independent_case_rule": "All three regimes use exactly the same conditional weights, pre-projection means, and pre-projection covariances; therefore p(X_directional|Y1=j) is identical for all j and the two observed blocks are marginally independent."
+    },
+    "dependence_factor_interpretation": {
+      "legacy_name": "within-component cross-block dependence",
+      "new_name": "regime-directional dependence",
+      "strong": "The three first-layer regimes have fully separated directional-mixture centers.",
+      "weak": "Regime-specific directional center offsets are one third of the strong offsets.",
+      "independent": "Regime-specific directional center offsets are zero and all conditional directional mixtures are identical.",
+      "important_note": "There is no Gaussian cross-covariance in this generator. By construction, X_linear and X_directional are conditionally independent given Y1; dependence is mediated only through the first-layer latent regime."
+    },
+    "dimension_extension_rule": "The 3d first-layer means and covariances reuse the original 3d linear blocks. The 3d directional means lie on a tilted great circle in R^3, which makes the angular scaling rule exact while using all three ambient coordinates.",
+    "observation_noise_protocol": {
+      "included_as_separate_experiment_cases": false,
+      "paired_noisy_dataset_supported": true,
+      "linear_noise_relative_scale": 0.15,
+      "directional_pre_projection_noise_relative_scale": 0.15,
+      "rule": "For each clean dataset, optionally apply the same paired observation-noise protocol as in the original experiment: isotropic Gaussian noise scaled by the maximum empirical coordinate standard deviation of the corresponding latent block, followed by renormalization of the directional block."
+    }
+  },
+  "experiments": {
+    "hier-projmix-2d-low-strong": {
+      "experiment_name": "hier-projmix-2d-low-strong",
+      "generator": "hierarchical_projected_gaussian",
+      "dimensions": {
+        "linear": 2,
+        "projected_latent": 2,
+        "directional_support": "S^1",
+        "observed_product_space": "R^2 x S^1"
+      },
+      "factor_levels": {
+        "dimensionality": "2d",
+        "component_separability": "low",
+        "regime_directional_dependence": "strong",
+        "legacy_case_suffix": "strong"
+      },
+      "latent_structure": {
+        "n_first_layer_components": 3,
+        "n_second_layer_components_per_regime": 2,
+        "first_layer_label": "Y1",
+        "second_layer_label": "Y2_given_Y1",
+        "conditional_independence": [
+          "X_linear independent of X_directional given Y1",
+          "X_linear independent of Y2 given Y1"
+        ]
+      },
+      "first_layer": {
+        "distribution": "gaussian_mixture",
+        "mixture_weights": [
+          0.36,
+          0.34,
+          0.3
+        ],
+        "component_means": [
+          [
+            -0.00033,
+            -0.00033
+          ],
+          [
+            0.19767,
+            -0.08833
+          ],
+          [
+            -0.18733,
+            0.09867
+          ]
+        ],
+        "covariances": [
+          [
+            [
+              0.9025,
+              0.12112
+            ],
+            [
+              0.12112,
+              0.7225
+            ]
+          ],
+          [
+            [
+              0.7744,
+              0.12144
+            ],
+            [
+              0.12144,
+              0.8464
+            ]
+          ],
+          [
+            [
+              1.0404,
+              0.2448
+            ],
+            [
+              0.2448,
+              0.64
+            ]
+          ]
+        ]
+      },
+      "second_layer": {
+        "distribution": "conditional_mixture_of_projected_gaussians",
+        "conditional_mixture_weights": [
+          [
+            0.58,
+            0.42
+          ],
+          [
+            0.58,
+            0.42
+          ],
+          [
+            0.58,
+            0.42
+          ]
+        ],
+        "pre_projection_means": [
+          [
+            [
+              1.03405096,
+              0.11107927
+            ],
+            [
+              0.86423216,
+              0.4620636
+            ]
+          ],
+          [
+            [
+              0.89022431,
+              0.53768083
+            ],
+            [
+              0.58798382,
+              0.78401213
+            ]
+          ],
+          [
+            [
+              0.57958349,
+              0.86352937
+            ],
+            [
+              0.20155647,
+              0.959049
+            ]
+          ]
+        ],
+        "pre_projection_covariances": [
+          [
+            [
+              [
+                0.14,
+                -0.025
+              ],
+              [
+                -0.025,
+                0.22
+              ]
+            ],
+            [
+              [
+                0.21,
+                0.035
+              ],
+              [
+                0.035,
+                0.13
+              ]
+            ]
+          ],
+          [
+            [
+              [
+                0.14,
+                -0.025
+              ],
+              [
+                -0.025,
+                0.22
+              ]
+            ],
+            [
+              [
+                0.21,
+                0.035
+              ],
+              [
+                0.035,
+                0.13
+              ]
+            ]
+          ],
+          [
+            [
+              [
+                0.14,
+                -0.025
+              ],
+              [
+                -0.025,
+                0.22
+              ]
+            ],
+            [
+              [
+                0.21,
+                0.035
+              ],
+              [
+                0.035,
+                0.13
+              ]
+            ]
+          ]
+        ],
+        "mean_angle_offsets_degrees_from_common_anchor": [
+          [
+            -36.0,
+            -14.0
+          ],
+          [
+            -11.0,
+            11.0
+          ],
+          [
+            14.0,
+            36.0
+          ]
+        ],
+        "projection_rule": "X_directional = U_directional / ||U_directional||"
+      },
+      "sampling_order": [
+        "Y1 ~ Categorical(first_layer.mixture_weights)",
+        "X_linear | Y1=j ~ Gaussian(first_layer.component_means[j], first_layer.covariances[j])",
+        "Y2 | Y1=j ~ Categorical(second_layer.conditional_mixture_weights[j])",
+        "U_directional | Y1=j,Y2=k ~ Gaussian(second_layer.pre_projection_means[j][k], second_layer.pre_projection_covariances[j][k])",
+        "X_directional = U_directional / ||U_directional||"
+      ]
+    },
+    "hier-projmix-2d-low-weak": {
+      "experiment_name": "hier-projmix-2d-low-weak",
+      "generator": "hierarchical_projected_gaussian",
+      "dimensions": {
+        "linear": 2,
+        "projected_latent": 2,
+        "directional_support": "S^1",
+        "observed_product_space": "R^2 x S^1"
+      },
+      "factor_levels": {
+        "dimensionality": "2d",
+        "component_separability": "low",
+        "regime_directional_dependence": "weak",
+        "legacy_case_suffix": "weak"
+      },
+      "latent_structure": {
+        "n_first_layer_components": 3,
+        "n_second_layer_components_per_regime": 2,
+        "first_layer_label": "Y1",
+        "second_layer_label": "Y2_given_Y1",
+        "conditional_independence": [
+          "X_linear independent of X_directional given Y1",
+          "X_linear independent of Y2 given Y1"
+        ]
+      },
+      "first_layer": {
+        "distribution": "gaussian_mixture",
+        "mixture_weights": [
+          0.36,
+          0.34,
+          0.3
+        ],
+        "component_means": [
+          [
+            -0.00033,
+            -0.00033
+          ],
+          [
+            0.19767,
+            -0.08833
+          ],
+          [
+            -0.18733,
+            0.09867
+          ]
+        ],
+        "covariances": [
+          [
+            [
+              0.9025,
+              0.12112
+            ],
+            [
+              0.12112,
+              0.7225
+            ]
+          ],
+          [
+            [
+              0.7744,
+              0.12144
+            ],
+            [
+              0.12144,
+              0.8464
+            ]
+          ],
+          [
+            [
+              1.0404,
+              0.2448
+            ],
+            [
+              0.2448,
+              0.64
+            ]
+          ]
+        ]
+      },
+      "second_layer": {
+        "distribution": "conditional_mixture_of_projected_gaussians",
+        "conditional_mixture_weights": [
+          [
+            0.58,
+            0.42
+          ],
+          [
+            0.58,
+            0.42
+          ],
+          [
+            0.58,
+            0.42
+          ]
+        ],
+        "pre_projection_means": [
+          [
+            [
+              0.95875209,
+              0.40298193
+            ],
+            [
+              0.69540401,
+              0.69051666
+            ]
+          ],
+          [
+            [
+              0.89022431,
+              0.53768083
+            ],
+            [
+              0.58798382,
+              0.78401213
+            ]
+          ],
+          [
+            [
+              0.80289792,
+              0.66102566
+            ],
+            [
+              0.46814734,
+              0.86095184
+            ]
+          ]
+        ],
+        "pre_projection_covariances": [
+          [
+            [
+              [
+                0.14,
+                -0.025
+              ],
+              [
+                -0.025,
+                0.22
+              ]
+            ],
+            [
+              [
+                0.21,
+                0.035
+              ],
+              [
+                0.035,
+                0.13
+              ]
+            ]
+          ],
+          [
+            [
+              [
+                0.14,
+                -0.025
+              ],
+              [
+                -0.025,
+                0.22
+              ]
+            ],
+            [
+              [
+                0.21,
+                0.035
+              ],
+              [
+                0.035,
+                0.13
+              ]
+            ]
+          ],
+          [
+            [
+              [
+                0.14,
+                -0.025
+              ],
+              [
+                -0.025,
+                0.22
+              ]
+            ],
+            [
+              [
+                0.21,
+                0.035
+              ],
+              [
+                0.035,
+                0.13
+              ]
+            ]
+          ]
+        ],
+        "mean_angle_offsets_degrees_from_common_anchor": [
+          [
+            -19.33333333,
+            2.66666667
+          ],
+          [
+            -11.0,
+            11.0
+          ],
+          [
+            -2.66666667,
+            19.33333333
+          ]
+        ],
+        "projection_rule": "X_directional = U_directional / ||U_directional||"
+      },
+      "sampling_order": [
+        "Y1 ~ Categorical(first_layer.mixture_weights)",
+        "X_linear | Y1=j ~ Gaussian(first_layer.component_means[j], first_layer.covariances[j])",
+        "Y2 | Y1=j ~ Categorical(second_layer.conditional_mixture_weights[j])",
+        "U_directional | Y1=j,Y2=k ~ Gaussian(second_layer.pre_projection_means[j][k], second_layer.pre_projection_covariances[j][k])",
+        "X_directional = U_directional / ||U_directional||"
+      ]
+    },
+    "hier-projmix-2d-low-ind": {
+      "experiment_name": "hier-projmix-2d-low-ind",
+      "generator": "hierarchical_projected_gaussian",
+      "dimensions": {
+        "linear": 2,
+        "projected_latent": 2,
+        "directional_support": "S^1",
+        "observed_product_space": "R^2 x S^1"
+      },
+      "factor_levels": {
+        "dimensionality": "2d",
+        "component_separability": "low",
+        "regime_directional_dependence": "independent",
+        "legacy_case_suffix": "ind"
+      },
+      "latent_structure": {
+        "n_first_layer_components": 3,
+        "n_second_layer_components_per_regime": 2,
+        "first_layer_label": "Y1",
+        "second_layer_label": "Y2_given_Y1",
+        "conditional_independence": [
+          "X_linear independent of X_directional given Y1",
+          "X_linear independent of Y2 given Y1"
+        ]
+      },
+      "first_layer": {
+        "distribution": "gaussian_mixture",
+        "mixture_weights": [
+          0.36,
+          0.34,
+          0.3
+        ],
+        "component_means": [
+          [
+            -0.00033,
+            -0.00033
+          ],
+          [
+            0.19767,
+            -0.08833
+          ],
+          [
+            -0.18733,
+            0.09867
+          ]
+        ],
+        "covariances": [
+          [
+            [
+              0.9025,
+              0.12112
+            ],
+            [
+              0.12112,
+              0.7225
+            ]
+          ],
+          [
+            [
+              0.7744,
+              0.12144
+            ],
+            [
+              0.12144,
+              0.8464
+            ]
+          ],
+          [
+            [
+              1.0404,
+              0.2448
+            ],
+            [
+              0.2448,
+              0.64
+            ]
+          ]
+        ]
+      },
+      "second_layer": {
+        "distribution": "conditional_mixture_of_projected_gaussians",
+        "conditional_mixture_weights": [
+          [
+            0.58,
+            0.42
+          ],
+          [
+            0.58,
+            0.42
+          ],
+          [
+            0.58,
+            0.42
+          ]
+        ],
+        "pre_projection_means": [
+          [
+            [
+              0.89022431,
+              0.53768083
+            ],
+            [
+              0.58798382,
+              0.78401213
+            ]
+          ],
+          [
+            [
+              0.89022431,
+              0.53768083
+            ],
+            [
+              0.58798382,
+              0.78401213
+            ]
+          ],
+          [
+            [
+              0.89022431,
+              0.53768083
+            ],
+            [
+              0.58798382,
+              0.78401213
+            ]
+          ]
+        ],
+        "pre_projection_covariances": [
+          [
+            [
+              [
+                0.14,
+                -0.025
+              ],
+              [
+                -0.025,
+                0.22
+              ]
+            ],
+            [
+              [
+                0.21,
+                0.035
+              ],
+              [
+                0.035,
+                0.13
+              ]
+            ]
+          ],
+          [
+            [
+              [
+                0.14,
+                -0.025
+              ],
+              [
+                -0.025,
+                0.22
+              ]
+            ],
+            [
+              [
+                0.21,
+                0.035
+              ],
+              [
+                0.035,
+                0.13
+              ]
+            ]
+          ],
+          [
+            [
+              [
+                0.14,
+                -0.025
+              ],
+              [
+                -0.025,
+                0.22
+              ]
+            ],
+            [
+              [
+                0.21,
+                0.035
+              ],
+              [
+                0.035,
+                0.13
+              ]
+            ]
+          ]
+        ],
+        "mean_angle_offsets_degrees_from_common_anchor": [
+          [
+            -11.0,
+            11.0
+          ],
+          [
+            -11.0,
+            11.0
+          ],
+          [
+            -11.0,
+            11.0
+          ]
+        ],
+        "projection_rule": "X_directional = U_directional / ||U_directional||"
+      },
+      "sampling_order": [
+        "Y1 ~ Categorical(first_layer.mixture_weights)",
+        "X_linear | Y1=j ~ Gaussian(first_layer.component_means[j], first_layer.covariances[j])",
+        "Y2 | Y1=j ~ Categorical(second_layer.conditional_mixture_weights[j])",
+        "U_directional | Y1=j,Y2=k ~ Gaussian(second_layer.pre_projection_means[j][k], second_layer.pre_projection_covariances[j][k])",
+        "X_directional = U_directional / ||U_directional||"
+      ]
+    },
+    "hier-projmix-2d-high-strong": {
+      "experiment_name": "hier-projmix-2d-high-strong",
+      "generator": "hierarchical_projected_gaussian",
+      "dimensions": {
+        "linear": 2,
+        "projected_latent": 2,
+        "directional_support": "S^1",
+        "observed_product_space": "R^2 x S^1"
+      },
+      "factor_levels": {
+        "dimensionality": "2d",
+        "component_separability": "high",
+        "regime_directional_dependence": "strong",
+        "legacy_case_suffix": "strong"
+      },
+      "latent_structure": {
+        "n_first_layer_components": 3,
+        "n_second_layer_components_per_regime": 2,
+        "first_layer_label": "Y1",
+        "second_layer_label": "Y2_given_Y1",
+        "conditional_independence": [
+          "X_linear independent of X_directional given Y1",
+          "X_linear independent of Y2 given Y1"
+        ]
+      },
+      "first_layer": {
+        "distribution": "gaussian_mixture",
+        "mixture_weights": [
+          0.36,
+          0.34,
+          0.3
+        ],
+        "component_means": [
+          [
+            -0.01866333,
+            -0.01866333
+          ],
+          [
+            1.16933667,
+            -0.54666333
+          ],
+          [
+            -1.14066333,
+            0.57533667
+          ]
+        ],
+        "covariances": [
+          [
+            [
+              0.9025,
+              0.12112
+            ],
+            [
+              0.12112,
+              0.7225
+            ]
+          ],
+          [
+            [
+              0.7744,
+              0.12144
+            ],
+            [
+              0.12144,
+              0.8464
+            ]
+          ],
+          [
+            [
+              1.0404,
+              0.2448
+            ],
+            [
+              0.2448,
+              0.64
+            ]
+          ]
+        ]
+      },
+      "second_layer": {
+        "distribution": "conditional_mixture_of_projected_gaussians",
+        "conditional_mixture_weights": [
+          [
+            0.58,
+            0.42
+          ],
+          [
+            0.58,
+            0.42
+          ],
+          [
+            0.58,
+            0.42
+          ]
+        ],
+        "pre_projection_means": [
+          [
+            [
+              0.80972935,
+              -0.65263955
+            ],
+            [
+              0.96317807,
+              0.18079827
+            ]
+          ],
+          [
+            [
+              0.99251148,
+              0.31067825
+            ],
+            [
+              0.3847848,
+              0.90129943
+            ]
+          ],
+          [
+            [
+              0.29309031,
+              0.99784672
+            ],
+            [
+              -0.53562811,
+              0.820672
+            ]
+          ]
+        ],
+        "pre_projection_covariances": [
+          [
+            [
+              [
+                0.14,
+                -0.025
+              ],
+              [
+                -0.025,
+                0.22
+              ]
+            ],
+            [
+              [
+                0.21,
+                0.035
+              ],
+              [
+                0.035,
+                0.13
+              ]
+            ]
+          ],
+          [
+            [
+              [
+                0.14,
+                -0.025
+              ],
+              [
+                -0.025,
+                0.22
+              ]
+            ],
+            [
+              [
+                0.21,
+                0.035
+              ],
+              [
+                0.035,
+                0.13
+              ]
+            ]
+          ],
+          [
+            [
+              [
+                0.14,
+                -0.025
+              ],
+              [
+                -0.025,
+                0.22
+              ]
+            ],
+            [
+              [
+                0.21,
+                0.035
+              ],
+              [
+                0.035,
+                0.13
+              ]
+            ]
+          ]
+        ],
+        "mean_angle_offsets_degrees_from_common_anchor": [
+          [
+            -81.0,
+            -31.5
+          ],
+          [
+            -24.75,
+            24.75
+          ],
+          [
+            31.5,
+            81.0
+          ]
+        ],
+        "projection_rule": "X_directional = U_directional / ||U_directional||"
+      },
+      "sampling_order": [
+        "Y1 ~ Categorical(first_layer.mixture_weights)",
+        "X_linear | Y1=j ~ Gaussian(first_layer.component_means[j], first_layer.covariances[j])",
+        "Y2 | Y1=j ~ Categorical(second_layer.conditional_mixture_weights[j])",
+        "U_directional | Y1=j,Y2=k ~ Gaussian(second_layer.pre_projection_means[j][k], second_layer.pre_projection_covariances[j][k])",
+        "X_directional = U_directional / ||U_directional||"
+      ]
+    },
+    "hier-projmix-2d-high-weak": {
+      "experiment_name": "hier-projmix-2d-high-weak",
+      "generator": "hierarchical_projected_gaussian",
+      "dimensions": {
+        "linear": 2,
+        "projected_latent": 2,
+        "directional_support": "S^1",
+        "observed_product_space": "R^2 x S^1"
+      },
+      "factor_levels": {
+        "dimensionality": "2d",
+        "component_separability": "high",
+        "regime_directional_dependence": "weak",
+        "legacy_case_suffix": "weak"
+      },
+      "latent_structure": {
+        "n_first_layer_components": 3,
+        "n_second_layer_components_per_regime": 2,
+        "first_layer_label": "Y1",
+        "second_layer_label": "Y2_given_Y1",
+        "conditional_independence": [
+          "X_linear independent of X_directional given Y1",
+          "X_linear independent of Y2 given Y1"
+        ]
+      },
+      "first_layer": {
+        "distribution": "gaussian_mixture",
+        "mixture_weights": [
+          0.36,
+          0.34,
+          0.3
+        ],
+        "component_means": [
+          [
+            -0.01866333,
+            -0.01866333
+          ],
+          [
+            1.16933667,
+            -0.54666333
+          ],
+          [
+            -1.14066333,
+            0.57533667
+          ]
+        ],
+        "covariances": [
+          [
+            [
+              0.9025,
+              0.12112
+            ],
+            [
+              0.12112,
+              0.7225
+            ]
+          ],
+          [
+            [
+              0.7744,
+              0.12144
+            ],
+            [
+              0.12144,
+              0.8464
+            ]
+          ],
+          [
+            [
+              1.0404,
+              0.2448
+            ],
+            [
+              0.2448,
+              0.64
+            ]
+          ]
+        ]
+      },
+      "second_layer": {
+        "distribution": "conditional_mixture_of_projected_gaussians",
+        "conditional_mixture_weights": [
+          [
+            0.58,
+            0.42
+          ],
+          [
+            0.58,
+            0.42
+          ],
+          [
+            0.58,
+            0.42
+          ]
+        ],
+        "pre_projection_means": [
+          [
+            [
+              1.03970327,
+              -0.02484177
+            ],
+            [
+              0.65407752,
+              0.72978257
+            ]
+          ],
+          [
+            [
+              0.99251148,
+              0.31067825
+            ],
+            [
+              0.3847848,
+              0.90129943
+            ]
+          ],
+          [
+            [
+              0.83997477,
+              0.61322295
+            ],
+            [
+              0.07465111,
+              0.9771526
+            ]
+          ]
+        ],
+        "pre_projection_covariances": [
+          [
+            [
+              [
+                0.14,
+                -0.025
+              ],
+              [
+                -0.025,
+                0.22
+              ]
+            ],
+            [
+              [
+                0.21,
+                0.035
+              ],
+              [
+                0.035,
+                0.13
+              ]
+            ]
+          ],
+          [
+            [
+              [
+                0.14,
+                -0.025
+              ],
+              [
+                -0.025,
+                0.22
+              ]
+            ],
+            [
+              [
+                0.21,
+                0.035
+              ],
+              [
+                0.035,
+                0.13
+              ]
+            ]
+          ],
+          [
+            [
+              [
+                0.14,
+                -0.025
+              ],
+              [
+                -0.025,
+                0.22
+              ]
+            ],
+            [
+              [
+                0.21,
+                0.035
+              ],
+              [
+                0.035,
+                0.13
+              ]
+            ]
+          ]
+        ],
+        "mean_angle_offsets_degrees_from_common_anchor": [
+          [
+            -43.5,
+            6.0
+          ],
+          [
+            -24.75,
+            24.75
+          ],
+          [
+            -6.0,
+            43.5
+          ]
+        ],
+        "projection_rule": "X_directional = U_directional / ||U_directional||"
+      },
+      "sampling_order": [
+        "Y1 ~ Categorical(first_layer.mixture_weights)",
+        "X_linear | Y1=j ~ Gaussian(first_layer.component_means[j], first_layer.covariances[j])",
+        "Y2 | Y1=j ~ Categorical(second_layer.conditional_mixture_weights[j])",
+        "U_directional | Y1=j,Y2=k ~ Gaussian(second_layer.pre_projection_means[j][k], second_layer.pre_projection_covariances[j][k])",
+        "X_directional = U_directional / ||U_directional||"
+      ]
+    },
+    "hier-projmix-2d-high-ind": {
+      "experiment_name": "hier-projmix-2d-high-ind",
+      "generator": "hierarchical_projected_gaussian",
+      "dimensions": {
+        "linear": 2,
+        "projected_latent": 2,
+        "directional_support": "S^1",
+        "observed_product_space": "R^2 x S^1"
+      },
+      "factor_levels": {
+        "dimensionality": "2d",
+        "component_separability": "high",
+        "regime_directional_dependence": "independent",
+        "legacy_case_suffix": "ind"
+      },
+      "latent_structure": {
+        "n_first_layer_components": 3,
+        "n_second_layer_components_per_regime": 2,
+        "first_layer_label": "Y1",
+        "second_layer_label": "Y2_given_Y1",
+        "conditional_independence": [
+          "X_linear independent of X_directional given Y1",
+          "X_linear independent of Y2 given Y1"
+        ]
+      },
+      "first_layer": {
+        "distribution": "gaussian_mixture",
+        "mixture_weights": [
+          0.36,
+          0.34,
+          0.3
+        ],
+        "component_means": [
+          [
+            -0.01866333,
+            -0.01866333
+          ],
+          [
+            1.16933667,
+            -0.54666333
+          ],
+          [
+            -1.14066333,
+            0.57533667
+          ]
+        ],
+        "covariances": [
+          [
+            [
+              0.9025,
+              0.12112
+            ],
+            [
+              0.12112,
+              0.7225
+            ]
+          ],
+          [
+            [
+              0.7744,
+              0.12144
+            ],
+            [
+              0.12144,
+              0.8464
+            ]
+          ],
+          [
+            [
+              1.0404,
+              0.2448
+            ],
+            [
+              0.2448,
+              0.64
+            ]
+          ]
+        ]
+      },
+      "second_layer": {
+        "distribution": "conditional_mixture_of_projected_gaussians",
+        "conditional_mixture_weights": [
+          [
+            0.58,
+            0.42
+          ],
+          [
+            0.58,
+            0.42
+          ],
+          [
+            0.58,
+            0.42
+          ]
+        ],
+        "pre_projection_means": [
+          [
+            [
+              0.99251148,
+              0.31067825
+            ],
+            [
+              0.3847848,
+              0.90129943
+            ]
+          ],
+          [
+            [
+              0.99251148,
+              0.31067825
+            ],
+            [
+              0.3847848,
+              0.90129943
+            ]
+          ],
+          [
+            [
+              0.99251148,
+              0.31067825
+            ],
+            [
+              0.3847848,
+              0.90129943
+            ]
+          ]
+        ],
+        "pre_projection_covariances": [
+          [
+            [
+              [
+                0.14,
+                -0.025
+              ],
+              [
+                -0.025,
+                0.22
+              ]
+            ],
+            [
+              [
+                0.21,
+                0.035
+              ],
+              [
+                0.035,
+                0.13
+              ]
+            ]
+          ],
+          [
+            [
+              [
+                0.14,
+                -0.025
+              ],
+              [
+                -0.025,
+                0.22
+              ]
+            ],
+            [
+              [
+                0.21,
+                0.035
+              ],
+              [
+                0.035,
+                0.13
+              ]
+            ]
+          ],
+          [
+            [
+              [
+                0.14,
+                -0.025
+              ],
+              [
+                -0.025,
+                0.22
+              ]
+            ],
+            [
+              [
+                0.21,
+                0.035
+              ],
+              [
+                0.035,
+                0.13
+              ]
+            ]
+          ]
+        ],
+        "mean_angle_offsets_degrees_from_common_anchor": [
+          [
+            -24.75,
+            24.75
+          ],
+          [
+            -24.75,
+            24.75
+          ],
+          [
+            -24.75,
+            24.75
+          ]
+        ],
+        "projection_rule": "X_directional = U_directional / ||U_directional||"
+      },
+      "sampling_order": [
+        "Y1 ~ Categorical(first_layer.mixture_weights)",
+        "X_linear | Y1=j ~ Gaussian(first_layer.component_means[j], first_layer.covariances[j])",
+        "Y2 | Y1=j ~ Categorical(second_layer.conditional_mixture_weights[j])",
+        "U_directional | Y1=j,Y2=k ~ Gaussian(second_layer.pre_projection_means[j][k], second_layer.pre_projection_covariances[j][k])",
+        "X_directional = U_directional / ||U_directional||"
+      ]
+    },
+    "hier-projmix-3d-low-strong": {
+      "experiment_name": "hier-projmix-3d-low-strong",
+      "generator": "hierarchical_projected_gaussian",
+      "dimensions": {
+        "linear": 3,
+        "projected_latent": 3,
+        "directional_support": "S^2",
+        "observed_product_space": "R^3 x S^2"
+      },
+      "factor_levels": {
+        "dimensionality": "3d",
+        "component_separability": "low",
+        "regime_directional_dependence": "strong",
+        "legacy_case_suffix": "strong"
+      },
+      "latent_structure": {
+        "n_first_layer_components": 3,
+        "n_second_layer_components_per_regime": 2,
+        "first_layer_label": "Y1",
+        "second_layer_label": "Y2_given_Y1",
+        "conditional_independence": [
+          "X_linear independent of X_directional given Y1",
+          "X_linear independent of Y2 given Y1"
+        ]
+      },
+      "first_layer": {
+        "distribution": "gaussian_mixture",
+        "mixture_weights": [
+          0.36,
+          0.34,
+          0.3
+        ],
+        "component_means": [
+          [
+            -0.00033,
+            -0.00033,
+            0.0
+          ],
+          [
+            0.19767,
+            -0.08833,
+            0.124
+          ],
+          [
+            -0.18733,
+            0.09867,
+            -0.124
+          ]
+        ],
+        "covariances": [
+          [
+            [
+              0.9025,
+              0.12112,
+              0.0
+            ],
+            [
+              0.12112,
+              0.7225,
+              0.0
+            ],
+            [
+              0.0,
+              0.0,
+              0.6084
+            ]
+          ],
+          [
+            [
+              0.7744,
+              0.12144,
+              0.0
+            ],
+            [
+              0.12144,
+              0.8464,
+              0.0
+            ],
+            [
+              0.0,
+              0.0,
+              0.6724
+            ]
+          ],
+          [
+            [
+              1.0404,
+              0.2448,
+              0.0
+            ],
+            [
+              0.2448,
+              0.64,
+              0.0
+            ],
+            [
+              0.0,
+              0.0,
+              0.81
+            ]
+          ]
+        ]
+      },
+      "second_layer": {
+        "distribution": "conditional_mixture_of_projected_gaussians",
+        "conditional_mixture_weights": [
+          [
+            0.58,
+            0.42
+          ],
+          [
+            0.58,
+            0.42
+          ],
+          [
+            0.58,
+            0.42
+          ]
+        ],
+        "pre_projection_means": [
+          [
+            [
+              0.55367727,
+              0.73850823,
+              -0.47921506
+            ],
+            [
+              0.67452149,
+              0.70232465,
+              -0.11027624
+            ]
+          ],
+          [
+            [
+              0.73020828,
+              0.73767268,
+              -0.06507607
+            ],
+            [
+              0.72828222,
+              0.58607309,
+              0.29414849
+            ]
+          ],
+          [
+            [
+              0.76990962,
+              0.59860876,
+              0.36125716
+            ],
+            [
+              0.64557421,
+              0.36000057,
+              0.64345438
+            ]
+          ]
+        ],
+        "pre_projection_covariances": [
+          [
+            [
+              [
+                0.14,
+                -0.025,
+                0.015
+              ],
+              [
+                -0.025,
+                0.22,
+                -0.012
+              ],
+              [
+                0.015,
+                -0.012,
+                0.17
+              ]
+            ],
+            [
+              [
+                0.21,
+                0.035,
+                -0.018
+              ],
+              [
+                0.035,
+                0.13,
+                0.01
+              ],
+              [
+                -0.018,
+                0.01,
+                0.19
+              ]
+            ]
+          ],
+          [
+            [
+              [
+                0.14,
+                -0.025,
+                0.015
+              ],
+              [
+                -0.025,
+                0.22,
+                -0.012
+              ],
+              [
+                0.015,
+                -0.012,
+                0.17
+              ]
+            ],
+            [
+              [
+                0.21,
+                0.035,
+                -0.018
+              ],
+              [
+                0.035,
+                0.13,
+                0.01
+              ],
+              [
+                -0.018,
+                0.01,
+                0.19
+              ]
+            ]
+          ],
+          [
+            [
+              [
+                0.14,
+                -0.025,
+                0.015
+              ],
+              [
+                -0.025,
+                0.22,
+                -0.012
+              ],
+              [
+                0.015,
+                -0.012,
+                0.17
+              ]
+            ],
+            [
+              [
+                0.21,
+                0.035,
+                -0.018
+              ],
+              [
+                0.035,
+                0.13,
+                0.01
+              ],
+              [
+                -0.018,
+                0.01,
+                0.19
+              ]
+            ]
+          ]
+        ],
+        "mean_angle_offsets_degrees_from_common_anchor": [
+          [
+            -36.0,
+            -14.0
+          ],
+          [
+            -11.0,
+            11.0
+          ],
+          [
+            14.0,
+            36.0
+          ]
+        ],
+        "projection_rule": "X_directional = U_directional / ||U_directional||"
+      },
+      "sampling_order": [
+        "Y1 ~ Categorical(first_layer.mixture_weights)",
+        "X_linear | Y1=j ~ Gaussian(first_layer.component_means[j], first_layer.covariances[j])",
+        "Y2 | Y1=j ~ Categorical(second_layer.conditional_mixture_weights[j])",
+        "U_directional | Y1=j,Y2=k ~ Gaussian(second_layer.pre_projection_means[j][k], second_layer.pre_projection_covariances[j][k])",
+        "X_directional = U_directional / ||U_directional||"
+      ]
+    },
+    "hier-projmix-3d-low-weak": {
+      "experiment_name": "hier-projmix-3d-low-weak",
+      "generator": "hierarchical_projected_gaussian",
+      "dimensions": {
+        "linear": 3,
+        "projected_latent": 3,
+        "directional_support": "S^2",
+        "observed_product_space": "R^3 x S^2"
+      },
+      "factor_levels": {
+        "dimensionality": "3d",
+        "component_separability": "low",
+        "regime_directional_dependence": "weak",
+        "legacy_case_suffix": "weak"
+      },
+      "latent_structure": {
+        "n_first_layer_components": 3,
+        "n_second_layer_components_per_regime": 2,
+        "first_layer_label": "Y1",
+        "second_layer_label": "Y2_given_Y1",
+        "conditional_independence": [
+          "X_linear independent of X_directional given Y1",
+          "X_linear independent of Y2 given Y1"
+        ]
+      },
+      "first_layer": {
+        "distribution": "gaussian_mixture",
+        "mixture_weights": [
+          0.36,
+          0.34,
+          0.3
+        ],
+        "component_means": [
+          [
+            -0.00033,
+            -0.00033,
+            0.0
+          ],
+          [
+            0.19767,
+            -0.08833,
+            0.124
+          ],
+          [
+            -0.18733,
+            0.09867,
+            -0.124
+          ]
+        ],
+        "covariances": [
+          [
+            [
+              0.9025,
+              0.12112,
+              0.0
+            ],
+            [
+              0.12112,
+              0.7225,
+              0.0
+            ],
+            [
+              0.0,
+              0.0,
+              0.6084
+            ]
+          ],
+          [
+            [
+              0.7744,
+              0.12144,
+              0.0
+            ],
+            [
+              0.12144,
+              0.8464,
+              0.0
+            ],
+            [
+              0.0,
+              0.0,
+              0.6724
+            ]
+          ],
+          [
+            [
+              1.0404,
+              0.2448,
+              0.0
+            ],
+            [
+              0.2448,
+              0.64,
+              0.0
+            ],
+            [
+              0.0,
+              0.0,
+              0.81
+            ]
+          ]
+        ]
+      },
+      "second_layer": {
+        "distribution": "conditional_mixture_of_projected_gaussians",
+        "conditional_mixture_weights": [
+          [
+            0.58,
+            0.42
+          ],
+          [
+            0.58,
+            0.42
+          ],
+          [
+            0.58,
+            0.42
+          ]
+        ],
+        "pre_projection_means": [
+          [
+            [
+              0.68542133,
+              0.75387248,
+              -0.2085039
+            ],
+            [
+              0.72555632,
+              0.63858309,
+              0.16180133
+            ]
+          ],
+          [
+            [
+              0.73020828,
+              0.73767268,
+              -0.06507607
+            ],
+            [
+              0.72828222,
+              0.58607309,
+              0.29414849
+            ]
+          ],
+          [
+            [
+              0.75957562,
+              0.70589564,
+              0.07972595
+            ],
+            [
+              0.71562919,
+              0.52118715,
+              0.4202842
+            ]
+          ]
+        ],
+        "pre_projection_covariances": [
+          [
+            [
+              [
+                0.14,
+                -0.025,
+                0.015
+              ],
+              [
+                -0.025,
+                0.22,
+                -0.012
+              ],
+              [
+                0.015,
+                -0.012,
+                0.17
+              ]
+            ],
+            [
+              [
+                0.21,
+                0.035,
+                -0.018
+              ],
+              [
+                0.035,
+                0.13,
+                0.01
+              ],
+              [
+                -0.018,
+                0.01,
+                0.19
+              ]
+            ]
+          ],
+          [
+            [
+              [
+                0.14,
+                -0.025,
+                0.015
+              ],
+              [
+                -0.025,
+                0.22,
+                -0.012
+              ],
+              [
+                0.015,
+                -0.012,
+                0.17
+              ]
+            ],
+            [
+              [
+                0.21,
+                0.035,
+                -0.018
+              ],
+              [
+                0.035,
+                0.13,
+                0.01
+              ],
+              [
+                -0.018,
+                0.01,
+                0.19
+              ]
+            ]
+          ],
+          [
+            [
+              [
+                0.14,
+                -0.025,
+                0.015
+              ],
+              [
+                -0.025,
+                0.22,
+                -0.012
+              ],
+              [
+                0.015,
+                -0.012,
+                0.17
+              ]
+            ],
+            [
+              [
+                0.21,
+                0.035,
+                -0.018
+              ],
+              [
+                0.035,
+                0.13,
+                0.01
+              ],
+              [
+                -0.018,
+                0.01,
+                0.19
+              ]
+            ]
+          ]
+        ],
+        "mean_angle_offsets_degrees_from_common_anchor": [
+          [
+            -19.33333333,
+            2.66666667
+          ],
+          [
+            -11.0,
+            11.0
+          ],
+          [
+            -2.66666667,
+            19.33333333
+          ]
+        ],
+        "projection_rule": "X_directional = U_directional / ||U_directional||"
+      },
+      "sampling_order": [
+        "Y1 ~ Categorical(first_layer.mixture_weights)",
+        "X_linear | Y1=j ~ Gaussian(first_layer.component_means[j], first_layer.covariances[j])",
+        "Y2 | Y1=j ~ Categorical(second_layer.conditional_mixture_weights[j])",
+        "U_directional | Y1=j,Y2=k ~ Gaussian(second_layer.pre_projection_means[j][k], second_layer.pre_projection_covariances[j][k])",
+        "X_directional = U_directional / ||U_directional||"
+      ]
+    },
+    "hier-projmix-3d-low-ind": {
+      "experiment_name": "hier-projmix-3d-low-ind",
+      "generator": "hierarchical_projected_gaussian",
+      "dimensions": {
+        "linear": 3,
+        "projected_latent": 3,
+        "directional_support": "S^2",
+        "observed_product_space": "R^3 x S^2"
+      },
+      "factor_levels": {
+        "dimensionality": "3d",
+        "component_separability": "low",
+        "regime_directional_dependence": "independent",
+        "legacy_case_suffix": "ind"
+      },
+      "latent_structure": {
+        "n_first_layer_components": 3,
+        "n_second_layer_components_per_regime": 2,
+        "first_layer_label": "Y1",
+        "second_layer_label": "Y2_given_Y1",
+        "conditional_independence": [
+          "X_linear independent of X_directional given Y1",
+          "X_linear independent of Y2 given Y1"
+        ]
+      },
+      "first_layer": {
+        "distribution": "gaussian_mixture",
+        "mixture_weights": [
+          0.36,
+          0.34,
+          0.3
+        ],
+        "component_means": [
+          [
+            -0.00033,
+            -0.00033,
+            0.0
+          ],
+          [
+            0.19767,
+            -0.08833,
+            0.124
+          ],
+          [
+            -0.18733,
+            0.09867,
+            -0.124
+          ]
+        ],
+        "covariances": [
+          [
+            [
+              0.9025,
+              0.12112,
+              0.0
+            ],
+            [
+              0.12112,
+              0.7225,
+              0.0
+            ],
+            [
+              0.0,
+              0.0,
+              0.6084
+            ]
+          ],
+          [
+            [
+              0.7744,
+              0.12144,
+              0.0
+            ],
+            [
+              0.12144,
+              0.8464,
+              0.0
+            ],
+            [
+              0.0,
+              0.0,
+              0.6724
+            ]
+          ],
+          [
+            [
+              1.0404,
+              0.2448,
+              0.0
+            ],
+            [
+              0.2448,
+              0.64,
+              0.0
+            ],
+            [
+              0.0,
+              0.0,
+              0.81
+            ]
+          ]
+        ]
+      },
+      "second_layer": {
+        "distribution": "conditional_mixture_of_projected_gaussians",
+        "conditional_mixture_weights": [
+          [
+            0.58,
+            0.42
+          ],
+          [
+            0.58,
+            0.42
+          ],
+          [
+            0.58,
+            0.42
+          ]
+        ],
+        "pre_projection_means": [
+          [
+            [
+              0.73020828,
+              0.73767268,
+              -0.06507607
+            ],
+            [
+              0.72828222,
+              0.58607309,
+              0.29414849
+            ]
+          ],
+          [
+            [
+              0.73020828,
+              0.73767268,
+              -0.06507607
+            ],
+            [
+              0.72828222,
+              0.58607309,
+              0.29414849
+            ]
+          ],
+          [
+            [
+              0.73020828,
+              0.73767268,
+              -0.06507607
+            ],
+            [
+              0.72828222,
+              0.58607309,
+              0.29414849
+            ]
+          ]
+        ],
+        "pre_projection_covariances": [
+          [
+            [
+              [
+                0.14,
+                -0.025,
+                0.015
+              ],
+              [
+                -0.025,
+                0.22,
+                -0.012
+              ],
+              [
+                0.015,
+                -0.012,
+                0.17
+              ]
+            ],
+            [
+              [
+                0.21,
+                0.035,
+                -0.018
+              ],
+              [
+                0.035,
+                0.13,
+                0.01
+              ],
+              [
+                -0.018,
+                0.01,
+                0.19
+              ]
+            ]
+          ],
+          [
+            [
+              [
+                0.14,
+                -0.025,
+                0.015
+              ],
+              [
+                -0.025,
+                0.22,
+                -0.012
+              ],
+              [
+                0.015,
+                -0.012,
+                0.17
+              ]
+            ],
+            [
+              [
+                0.21,
+                0.035,
+                -0.018
+              ],
+              [
+                0.035,
+                0.13,
+                0.01
+              ],
+              [
+                -0.018,
+                0.01,
+                0.19
+              ]
+            ]
+          ],
+          [
+            [
+              [
+                0.14,
+                -0.025,
+                0.015
+              ],
+              [
+                -0.025,
+                0.22,
+                -0.012
+              ],
+              [
+                0.015,
+                -0.012,
+                0.17
+              ]
+            ],
+            [
+              [
+                0.21,
+                0.035,
+                -0.018
+              ],
+              [
+                0.035,
+                0.13,
+                0.01
+              ],
+              [
+                -0.018,
+                0.01,
+                0.19
+              ]
+            ]
+          ]
+        ],
+        "mean_angle_offsets_degrees_from_common_anchor": [
+          [
+            -11.0,
+            11.0
+          ],
+          [
+            -11.0,
+            11.0
+          ],
+          [
+            -11.0,
+            11.0
+          ]
+        ],
+        "projection_rule": "X_directional = U_directional / ||U_directional||"
+      },
+      "sampling_order": [
+        "Y1 ~ Categorical(first_layer.mixture_weights)",
+        "X_linear | Y1=j ~ Gaussian(first_layer.component_means[j], first_layer.covariances[j])",
+        "Y2 | Y1=j ~ Categorical(second_layer.conditional_mixture_weights[j])",
+        "U_directional | Y1=j,Y2=k ~ Gaussian(second_layer.pre_projection_means[j][k], second_layer.pre_projection_covariances[j][k])",
+        "X_directional = U_directional / ||U_directional||"
+      ]
+    },
+    "hier-projmix-3d-high-strong": {
+      "experiment_name": "hier-projmix-3d-high-strong",
+      "generator": "hierarchical_projected_gaussian",
+      "dimensions": {
+        "linear": 3,
+        "projected_latent": 3,
+        "directional_support": "S^2",
+        "observed_product_space": "R^3 x S^2"
+      },
+      "factor_levels": {
+        "dimensionality": "3d",
+        "component_separability": "high",
+        "regime_directional_dependence": "strong",
+        "legacy_case_suffix": "strong"
+      },
+      "latent_structure": {
+        "n_first_layer_components": 3,
+        "n_second_layer_components_per_regime": 2,
+        "first_layer_label": "Y1",
+        "second_layer_label": "Y2_given_Y1",
+        "conditional_independence": [
+          "X_linear independent of X_directional given Y1",
+          "X_linear independent of Y2 given Y1"
+        ]
+      },
+      "first_layer": {
+        "distribution": "gaussian_mixture",
+        "mixture_weights": [
+          0.36,
+          0.34,
+          0.3
+        ],
+        "component_means": [
+          [
+            -0.01866333,
+            -0.01866333,
+            0.0
+          ],
+          [
+            1.16933667,
+            -0.54666333,
+            0.744
+          ],
+          [
+            -1.14066333,
+            0.57533667,
+            -0.744
+          ]
+        ],
+        "covariances": [
+          [
+            [
+              0.9025,
+              0.12112,
+              0.0
+            ],
+            [
+              0.12112,
+              0.7225,
+              0.0
+            ],
+            [
+              0.0,
+              0.0,
+              0.6084
+            ]
+          ],
+          [
+            [
+              0.7744,
+              0.12144,
+              0.0
+            ],
+            [
+              0.12144,
+              0.8464,
+              0.0
+            ],
+            [
+              0.0,
+              0.0,
+              0.6724
+            ]
+          ],
+          [
+            [
+              1.0404,
+              0.2448,
+              0.0
+            ],
+            [
+              0.2448,
+              0.64,
+              0.0
+            ],
+            [
+              0.0,
+              0.0,
+              0.81
+            ]
+          ]
+        ]
+      },
+      "second_layer": {
+        "distribution": "conditional_mixture_of_projected_gaussians",
+        "conditional_mixture_weights": [
+          [
+            0.58,
+            0.42
+          ],
+          [
+            0.58,
+            0.42
+          ],
+          [
+            0.58,
+            0.42
+          ]
+        ],
+        "pre_projection_means": [
+          [
+            [
+              0.00934939,
+              0.4078323,
+              -0.95665323
+            ],
+            [
+              0.56008329,
+              0.70571507,
+              -0.38558131
+            ]
+          ],
+          [
+            [
+              0.64847611,
+              0.75587313,
+              -0.29955727
+            ],
+            [
+              0.699271,
+              0.47301374,
+              0.49767265
+            ]
+          ],
+          [
+            [
+              0.71119865,
+              0.43204891,
+              0.62380303
+            ],
+            [
+              0.21690502,
+              -0.18013036,
+              0.93856554
+            ]
+          ]
+        ],
+        "pre_projection_covariances": [
+          [
+            [
+              [
+                0.14,
+                -0.025,
+                0.015
+              ],
+              [
+                -0.025,
+                0.22,
+                -0.012
+              ],
+              [
+                0.015,
+                -0.012,
+                0.17
+              ]
+            ],
+            [
+              [
+                0.21,
+                0.035,
+                -0.018
+              ],
+              [
+                0.035,
+                0.13,
+                0.01
+              ],
+              [
+                -0.018,
+                0.01,
+                0.19
+              ]
+            ]
+          ],
+          [
+            [
+              [
+                0.14,
+                -0.025,
+                0.015
+              ],
+              [
+                -0.025,
+                0.22,
+                -0.012
+              ],
+              [
+                0.015,
+                -0.012,
+                0.17
+              ]
+            ],
+            [
+              [
+                0.21,
+                0.035,
+                -0.018
+              ],
+              [
+                0.035,
+                0.13,
+                0.01
+              ],
+              [
+                -0.018,
+                0.01,
+                0.19
+              ]
+            ]
+          ],
+          [
+            [
+              [
+                0.14,
+                -0.025,
+                0.015
+              ],
+              [
+                -0.025,
+                0.22,
+                -0.012
+              ],
+              [
+                0.015,
+                -0.012,
+                0.17
+              ]
+            ],
+            [
+              [
+                0.21,
+                0.035,
+                -0.018
+              ],
+              [
+                0.035,
+                0.13,
+                0.01
+              ],
+              [
+                -0.018,
+                0.01,
+                0.19
+              ]
+            ]
+          ]
+        ],
+        "mean_angle_offsets_degrees_from_common_anchor": [
+          [
+            -81.0,
+            -31.5
+          ],
+          [
+            -24.75,
+            24.75
+          ],
+          [
+            31.5,
+            81.0
+          ]
+        ],
+        "projection_rule": "X_directional = U_directional / ||U_directional||"
+      },
+      "sampling_order": [
+        "Y1 ~ Categorical(first_layer.mixture_weights)",
+        "X_linear | Y1=j ~ Gaussian(first_layer.component_means[j], first_layer.covariances[j])",
+        "Y2 | Y1=j ~ Categorical(second_layer.conditional_mixture_weights[j])",
+        "U_directional | Y1=j,Y2=k ~ Gaussian(second_layer.pre_projection_means[j][k], second_layer.pre_projection_covariances[j][k])",
+        "X_directional = U_directional / ||U_directional||"
+      ]
+    },
+    "hier-projmix-3d-high-weak": {
+      "experiment_name": "hier-projmix-3d-high-weak",
+      "generator": "hierarchical_projected_gaussian",
+      "dimensions": {
+        "linear": 3,
+        "projected_latent": 3,
+        "directional_support": "S^2",
+        "observed_product_space": "R^3 x S^2"
+      },
+      "factor_levels": {
+        "dimensionality": "3d",
+        "component_separability": "high",
+        "regime_directional_dependence": "weak",
+        "legacy_case_suffix": "weak"
+      },
+      "latent_structure": {
+        "n_first_layer_components": 3,
+        "n_second_layer_components_per_regime": 2,
+        "first_layer_label": "Y1",
+        "second_layer_label": "Y2_given_Y1",
+        "conditional_independence": [
+          "X_linear independent of X_directional given Y1",
+          "X_linear independent of Y2 given Y1"
+        ]
+      },
+      "first_layer": {
+        "distribution": "gaussian_mixture",
+        "mixture_weights": [
+          0.36,
+          0.34,
+          0.3
+        ],
+        "component_means": [
+          [
+            -0.01866333,
+            -0.01866333,
+            0.0
+          ],
+          [
+            1.16933667,
+            -0.54666333,
+            0.744
+          ],
+          [
+            -1.14066333,
+            0.57533667,
+            -0.744
+          ]
+        ],
+        "covariances": [
+          [
+            [
+              0.9025,
+              0.12112,
+              0.0
+            ],
+            [
+              0.12112,
+              0.7225,
+              0.0
+            ],
+            [
+              0.0,
+              0.0,
+              0.6084
+            ]
+          ],
+          [
+            [
+              0.7744,
+              0.12144,
+              0.0
+            ],
+            [
+              0.12144,
+              0.8464,
+              0.0
+            ],
+            [
+              0.0,
+              0.0,
+              0.6724
+            ]
+          ],
+          [
+            [
+              1.0404,
+              0.2448,
+              0.0
+            ],
+            [
+              0.2448,
+              0.64,
+              0.0
+            ],
+            [
+              0.0,
+              0.0,
+              0.81
+            ]
+          ]
+        ]
+      },
+      "second_layer": {
+        "distribution": "conditional_mixture_of_projected_gaussians",
+        "conditional_mixture_weights": [
+          [
+            0.58,
+            0.42
+          ],
+          [
+            0.58,
+            0.42
+          ],
+          [
+            0.58,
+            0.42
+          ]
+        ],
+        "pre_projection_means": [
+          [
+            [
+              0.47839692,
+              0.71107806,
+              -0.58915564
+            ],
+            [
+              0.72849576,
+              0.61914132,
+              0.21530897
+            ]
+          ],
+          [
+            [
+              0.64847611,
+              0.75587313,
+              -0.29955727
+            ],
+            [
+              0.699271,
+              0.47301374,
+              0.49767265
+            ]
+          ],
+          [
+            [
+              0.7497262,
+              0.72044001,
+              0.02183604
+            ],
+            [
+              0.5958258,
+              0.2766806,
+              0.72721349
+            ]
+          ]
+        ],
+        "pre_projection_covariances": [
+          [
+            [
+              [
+                0.14,
+                -0.025,
+                0.015
+              ],
+              [
+                -0.025,
+                0.22,
+                -0.012
+              ],
+              [
+                0.015,
+                -0.012,
+                0.17
+              ]
+            ],
+            [
+              [
+                0.21,
+                0.035,
+                -0.018
+              ],
+              [
+                0.035,
+                0.13,
+                0.01
+              ],
+              [
+                -0.018,
+                0.01,
+                0.19
+              ]
+            ]
+          ],
+          [
+            [
+              [
+                0.14,
+                -0.025,
+                0.015
+              ],
+              [
+                -0.025,
+                0.22,
+                -0.012
+              ],
+              [
+                0.015,
+                -0.012,
+                0.17
+              ]
+            ],
+            [
+              [
+                0.21,
+                0.035,
+                -0.018
+              ],
+              [
+                0.035,
+                0.13,
+                0.01
+              ],
+              [
+                -0.018,
+                0.01,
+                0.19
+              ]
+            ]
+          ],
+          [
+            [
+              [
+                0.14,
+                -0.025,
+                0.015
+              ],
+              [
+                -0.025,
+                0.22,
+                -0.012
+              ],
+              [
+                0.015,
+                -0.012,
+                0.17
+              ]
+            ],
+            [
+              [
+                0.21,
+                0.035,
+                -0.018
+              ],
+              [
+                0.035,
+                0.13,
+                0.01
+              ],
+              [
+                -0.018,
+                0.01,
+                0.19
+              ]
+            ]
+          ]
+        ],
+        "mean_angle_offsets_degrees_from_common_anchor": [
+          [
+            -43.5,
+            6.0
+          ],
+          [
+            -24.75,
+            24.75
+          ],
+          [
+            -6.0,
+            43.5
+          ]
+        ],
+        "projection_rule": "X_directional = U_directional / ||U_directional||"
+      },
+      "sampling_order": [
+        "Y1 ~ Categorical(first_layer.mixture_weights)",
+        "X_linear | Y1=j ~ Gaussian(first_layer.component_means[j], first_layer.covariances[j])",
+        "Y2 | Y1=j ~ Categorical(second_layer.conditional_mixture_weights[j])",
+        "U_directional | Y1=j,Y2=k ~ Gaussian(second_layer.pre_projection_means[j][k], second_layer.pre_projection_covariances[j][k])",
+        "X_directional = U_directional / ||U_directional||"
+      ]
+    },
+    "hier-projmix-3d-high-ind": {
+      "experiment_name": "hier-projmix-3d-high-ind",
+      "generator": "hierarchical_projected_gaussian",
+      "dimensions": {
+        "linear": 3,
+        "projected_latent": 3,
+        "directional_support": "S^2",
+        "observed_product_space": "R^3 x S^2"
+      },
+      "factor_levels": {
+        "dimensionality": "3d",
+        "component_separability": "high",
+        "regime_directional_dependence": "independent",
+        "legacy_case_suffix": "ind"
+      },
+      "latent_structure": {
+        "n_first_layer_components": 3,
+        "n_second_layer_components_per_regime": 2,
+        "first_layer_label": "Y1",
+        "second_layer_label": "Y2_given_Y1",
+        "conditional_independence": [
+          "X_linear independent of X_directional given Y1",
+          "X_linear independent of Y2 given Y1"
+        ]
+      },
+      "first_layer": {
+        "distribution": "gaussian_mixture",
+        "mixture_weights": [
+          0.36,
+          0.34,
+          0.3
+        ],
+        "component_means": [
+          [
+            -0.01866333,
+            -0.01866333,
+            0.0
+          ],
+          [
+            1.16933667,
+            -0.54666333,
+            0.744
+          ],
+          [
+            -1.14066333,
+            0.57533667,
+            -0.744
+          ]
+        ],
+        "covariances": [
+          [
+            [
+              0.9025,
+              0.12112,
+              0.0
+            ],
+            [
+              0.12112,
+              0.7225,
+              0.0
+            ],
+            [
+              0.0,
+              0.0,
+              0.6084
+            ]
+          ],
+          [
+            [
+              0.7744,
+              0.12144,
+              0.0
+            ],
+            [
+              0.12144,
+              0.8464,
+              0.0
+            ],
+            [
+              0.0,
+              0.0,
+              0.6724
+            ]
+          ],
+          [
+            [
+              1.0404,
+              0.2448,
+              0.0
+            ],
+            [
+              0.2448,
+              0.64,
+              0.0
+            ],
+            [
+              0.0,
+              0.0,
+              0.81
+            ]
+          ]
+        ]
+      },
+      "second_layer": {
+        "distribution": "conditional_mixture_of_projected_gaussians",
+        "conditional_mixture_weights": [
+          [
+            0.58,
+            0.42
+          ],
+          [
+            0.58,
+            0.42
+          ],
+          [
+            0.58,
+            0.42
+          ]
+        ],
+        "pre_projection_means": [
+          [
+            [
+              0.64847611,
+              0.75587313,
+              -0.29955727
+            ],
+            [
+              0.699271,
+              0.47301374,
+              0.49767265
+            ]
+          ],
+          [
+            [
+              0.64847611,
+              0.75587313,
+              -0.29955727
+            ],
+            [
+              0.699271,
+              0.47301374,
+              0.49767265
+            ]
+          ],
+          [
+            [
+              0.64847611,
+              0.75587313,
+              -0.29955727
+            ],
+            [
+              0.699271,
+              0.47301374,
+              0.49767265
+            ]
+          ]
+        ],
+        "pre_projection_covariances": [
+          [
+            [
+              [
+                0.14,
+                -0.025,
+                0.015
+              ],
+              [
+                -0.025,
+                0.22,
+                -0.012
+              ],
+              [
+                0.015,
+                -0.012,
+                0.17
+              ]
+            ],
+            [
+              [
+                0.21,
+                0.035,
+                -0.018
+              ],
+              [
+                0.035,
+                0.13,
+                0.01
+              ],
+              [
+                -0.018,
+                0.01,
+                0.19
+              ]
+            ]
+          ],
+          [
+            [
+              [
+                0.14,
+                -0.025,
+                0.015
+              ],
+              [
+                -0.025,
+                0.22,
+                -0.012
+              ],
+              [
+                0.015,
+                -0.012,
+                0.17
+              ]
+            ],
+            [
+              [
+                0.21,
+                0.035,
+                -0.018
+              ],
+              [
+                0.035,
+                0.13,
+                0.01
+              ],
+              [
+                -0.018,
+                0.01,
+                0.19
+              ]
+            ]
+          ],
+          [
+            [
+              [
+                0.14,
+                -0.025,
+                0.015
+              ],
+              [
+                -0.025,
+                0.22,
+                -0.012
+              ],
+              [
+                0.015,
+                -0.012,
+                0.17
+              ]
+            ],
+            [
+              [
+                0.21,
+                0.035,
+                -0.018
+              ],
+              [
+                0.035,
+                0.13,
+                0.01
+              ],
+              [
+                -0.018,
+                0.01,
+                0.19
+              ]
+            ]
+          ]
+        ],
+        "mean_angle_offsets_degrees_from_common_anchor": [
+          [
+            -24.75,
+            24.75
+          ],
+          [
+            -24.75,
+            24.75
+          ],
+          [
+            -24.75,
+            24.75
+          ]
+        ],
+        "projection_rule": "X_directional = U_directional / ||U_directional||"
+      },
+      "sampling_order": [
+        "Y1 ~ Categorical(first_layer.mixture_weights)",
+        "X_linear | Y1=j ~ Gaussian(first_layer.component_means[j], first_layer.covariances[j])",
+        "Y2 | Y1=j ~ Categorical(second_layer.conditional_mixture_weights[j])",
+        "U_directional | Y1=j,Y2=k ~ Gaussian(second_layer.pre_projection_means[j][k], second_layer.pre_projection_covariances[j][k])",
+        "X_directional = U_directional / ||U_directional||"
+      ]
+    }
+  },
+  "validation": {
+    "status": "passed",
+    "checks_performed": [
+      "Symmetry and strict positive definiteness of every first-layer and pre-projection directional covariance matrix.",
+      "Exact factor-6 scaling of all first-layer pairwise mean distances from low to high separability.",
+      "Exact factor-2.25 scaling of every nonzero pairwise angle among the six projected-Gaussian mean directions from low to high separability.",
+      "Exact equality of the three conditional directional mixtures in every independent case.",
+      "Ordering of regime-directional separation: strong > weak > independent.",
+      "Monte Carlo sanity checks that high separability improves first-layer Bayes classification and conditional second-layer nearest-direction recovery."
+    ],
+    "global_exact_checks": {
+      "2d_linear_high_to_low_pairwise_distance_ratios": [
+        6.0,
+        6.0,
+        6.0
+      ],
+      "2d_linear_bhattacharyya_distances_low": [
+        0.01115887,
+        0.01347605,
+        0.04688209
+      ],
+      "2d_linear_bhattacharyya_distances_high": [
+        0.29333647,
+        0.29281617,
+        1.19557129
+      ],
+      "2d_strong_directional_high_to_low_nonzero_angle_ratios": [
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25
+      ],
+      "2d_strong_maximum_angle_scaling_error": 1.2212453270876722e-14,
+      "2d_low_strong_mean_pairwise_regime_resultant_angle_degrees": 33.333333333333314,
+      "2d_high_strong_mean_pairwise_regime_resultant_angle_degrees": 75.0,
+      "2d_weak_directional_high_to_low_nonzero_angle_ratios": [
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25
+      ],
+      "2d_weak_maximum_angle_scaling_error": 4.107825191113079e-15,
+      "2d_low_weak_mean_pairwise_regime_resultant_angle_degrees": 11.111111111111093,
+      "2d_high_weak_mean_pairwise_regime_resultant_angle_degrees": 24.999999999999982,
+      "2d_ind_directional_high_to_low_nonzero_angle_ratios": [
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25
+      ],
+      "2d_ind_maximum_angle_scaling_error": 5.551115123125783e-16,
+      "2d_low_ind_mean_pairwise_regime_resultant_angle_degrees": 0.0,
+      "2d_high_ind_mean_pairwise_regime_resultant_angle_degrees": 0.0,
+      "3d_linear_high_to_low_pairwise_distance_ratios": [
+        6.0,
+        6.0,
+        6.0
+      ],
+      "3d_linear_bhattacharyya_distances_low": [
+        0.01478512,
+        0.02128823,
+        0.0594178
+      ],
+      "3d_linear_bhattacharyya_distances_high": [
+        0.40200644,
+        0.3954817,
+        1.57113991
+      ],
+      "3d_strong_directional_high_to_low_nonzero_angle_ratios": [
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25
+      ],
+      "3d_strong_maximum_angle_scaling_error": 1.0325074129013956e-14,
+      "3d_low_strong_mean_pairwise_regime_resultant_angle_degrees": 33.33333333333333,
+      "3d_high_strong_mean_pairwise_regime_resultant_angle_degrees": 75.0,
+      "3d_weak_directional_high_to_low_nonzero_angle_ratios": [
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25
+      ],
+      "3d_weak_maximum_angle_scaling_error": 3.885780586188048e-15,
+      "3d_low_weak_mean_pairwise_regime_resultant_angle_degrees": 11.111111111111079,
+      "3d_high_weak_mean_pairwise_regime_resultant_angle_degrees": 24.99999999999999,
+      "3d_ind_directional_high_to_low_nonzero_angle_ratios": [
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25,
+        2.25
+      ],
+      "3d_ind_maximum_angle_scaling_error": 9.992007221626409e-16,
+      "3d_low_ind_mean_pairwise_regime_resultant_angle_degrees": 0.0,
+      "3d_high_ind_mean_pairwise_regime_resultant_angle_degrees": 0.0
+    },
+    "monte_carlo_sanity_checks": {
+      "2": {
+        "first_layer_bayes_accuracy_low": 0.39665,
+        "first_layer_bayes_accuracy_high": 0.698175,
+        "second_layer_nearest_direction_accuracy_low_strong": 0.680275,
+        "second_layer_nearest_direction_accuracy_high_strong": 0.84735,
+        "second_layer_nearest_direction_accuracy_low_weak": 0.68075,
+        "second_layer_nearest_direction_accuracy_high_weak": 0.847825,
+        "second_layer_nearest_direction_accuracy_low_ind": 0.6815,
+        "second_layer_nearest_direction_accuracy_high_ind": 0.846575
+      },
+      "3": {
+        "first_layer_bayes_accuracy_low": 0.420425,
+        "first_layer_bayes_accuracy_high": 0.74415,
+        "second_layer_nearest_direction_accuracy_low_strong": 0.67655,
+        "second_layer_nearest_direction_accuracy_high_strong": 0.845075,
+        "second_layer_nearest_direction_accuracy_low_weak": 0.67625,
+        "second_layer_nearest_direction_accuracy_high_weak": 0.843925,
+        "second_layer_nearest_direction_accuracy_low_ind": 0.679175,
+        "second_layer_nearest_direction_accuracy_high_ind": 0.83805
+      }
+    },
+    "case_level_covariance_checks": {
+      "hier-projmix-2d-low-strong": {
+        "all_covariances_symmetric": true,
+        "all_covariances_positive_definite": true,
+        "minimum_linear_covariance_eigenvalue": 0.52396103971838,
+        "minimum_directional_covariance_eigenvalue": 0.11684927093632676,
+        "first_layer_pairwise_euclidean_mean_distances": [
+          0.21667487163951432,
+          0.21158922467838479,
+          0.42801168208356183
+        ],
+        "second_layer_pairwise_mean_direction_angles_degrees": [
+          22.0,
+          25.0,
+          47.0,
+          50.0,
+          72.0,
+          3.0,
+          25.0,
+          28.0,
+          50.0,
+          22.0,
+          25.0,
+          47.0,
+          3.0,
+          25.0,
+          22.0
+        ],
+        "independent_case_has_identical_directional_mixtures_across_regimes": true
+      },
+      "hier-projmix-2d-low-weak": {
+        "all_covariances_symmetric": true,
+        "all_covariances_positive_definite": true,
+        "minimum_linear_covariance_eigenvalue": 0.52396103971838,
+        "minimum_directional_covariance_eigenvalue": 0.11684927093632676,
+        "first_layer_pairwise_euclidean_mean_distances": [
+          0.21667487163951432,
+          0.21158922467838479,
+          0.42801168208356183
+        ],
+        "second_layer_pairwise_mean_direction_angles_degrees": [
+          22.0,
+          8.33333333,
+          30.33333333,
+          16.66666667,
+          38.66666667,
+          13.66666667,
+          8.33333333,
+          5.33333333,
+          16.66666667,
+          22.0,
+          8.33333333,
+          30.33333333,
+          13.66666667,
+          8.33333333,
+          22.0
+        ],
+        "independent_case_has_identical_directional_mixtures_across_regimes": true
+      },
+      "hier-projmix-2d-low-ind": {
+        "all_covariances_symmetric": true,
+        "all_covariances_positive_definite": true,
+        "minimum_linear_covariance_eigenvalue": 0.52396103971838,
+        "minimum_directional_covariance_eigenvalue": 0.11684927093632676,
+        "first_layer_pairwise_euclidean_mean_distances": [
+          0.21667487163951432,
+          0.21158922467838479,
+          0.42801168208356183
+        ],
+        "second_layer_pairwise_mean_direction_angles_degrees": [
+          22.0,
+          1.21e-06,
+          22.0,
+          1.21e-06,
+          22.0,
+          22.0,
+          0.0,
+          22.0,
+          0.0,
+          22.0,
+          1.21e-06,
+          22.0,
+          22.0,
+          0.0,
+          22.0
+        ],
+        "independent_case_has_identical_directional_mixtures_across_regimes": true
+      },
+      "hier-projmix-2d-high-strong": {
+        "all_covariances_symmetric": true,
+        "all_covariances_positive_definite": true,
+        "minimum_linear_covariance_eigenvalue": 0.52396103971838,
+        "minimum_directional_covariance_eigenvalue": 0.11684927093632676,
+        "first_layer_pairwise_euclidean_mean_distances": [
+          1.300049229837086,
+          1.2695353480703087,
+          2.568070092501371
+        ],
+        "second_layer_pairwise_mean_direction_angles_degrees": [
+          49.5,
+          56.25,
+          105.75,
+          112.5,
+          162.0,
+          6.75,
+          56.25,
+          63.0,
+          112.5,
+          49.5,
+          56.25,
+          105.75,
+          6.75,
+          56.25,
+          49.5
+        ],
+        "independent_case_has_identical_directional_mixtures_across_regimes": true
+      },
+      "hier-projmix-2d-high-weak": {
+        "all_covariances_symmetric": true,
+        "all_covariances_positive_definite": true,
+        "minimum_linear_covariance_eigenvalue": 0.52396103971838,
+        "minimum_directional_covariance_eigenvalue": 0.11684927093632676,
+        "first_layer_pairwise_euclidean_mean_distances": [
+          1.300049229837086,
+          1.2695353480703087,
+          2.568070092501371
+        ],
+        "second_layer_pairwise_mean_direction_angles_degrees": [
+          49.5,
+          18.75,
+          68.25,
+          37.5,
+          87.0,
+          30.75,
+          18.75,
+          12.0,
+          37.5,
+          49.5,
+          18.75,
+          68.25,
+          30.75,
+          18.75,
+          49.5
+        ],
+        "independent_case_has_identical_directional_mixtures_across_regimes": true
+      },
+      "hier-projmix-2d-high-ind": {
+        "all_covariances_symmetric": true,
+        "all_covariances_positive_definite": true,
+        "minimum_linear_covariance_eigenvalue": 0.52396103971838,
+        "minimum_directional_covariance_eigenvalue": 0.11684927093632676,
+        "first_layer_pairwise_euclidean_mean_distances": [
+          1.300049229837086,
+          1.2695353480703087,
+          2.568070092501371
+        ],
+        "second_layer_pairwise_mean_direction_angles_degrees": [
+          49.5,
+          0.0,
+          49.5,
+          0.0,
+          49.5,
+          49.5,
+          0.0,
+          49.5,
+          0.0,
+          49.5,
+          0.0,
+          49.5,
+          49.5,
+          0.0,
+          49.5
+        ],
+        "independent_case_has_identical_directional_mixtures_across_regimes": true
+      },
+      "hier-projmix-3d-low-strong": {
+        "all_covariances_symmetric": true,
+        "all_covariances_positive_definite": true,
+        "minimum_linear_covariance_eigenvalue": 0.52396103971838,
+        "minimum_directional_covariance_eigenvalue": 0.11355813691534203,
+        "first_layer_pairwise_euclidean_mean_distances": [
+          0.24964775184247104,
+          0.245246814454337,
+          0.4946695866939871
+        ],
+        "second_layer_pairwise_mean_direction_angles_degrees": [
+          22.0,
+          25.0,
+          47.0,
+          50.0,
+          72.0,
+          3.0,
+          25.0,
+          28.0,
+          50.0,
+          22.0,
+          25.0,
+          47.0,
+          3.0,
+          25.0,
+          22.0
+        ],
+        "independent_case_has_identical_directional_mixtures_across_regimes": true
+      },
+      "hier-projmix-3d-low-weak": {
+        "all_covariances_symmetric": true,
+        "all_covariances_positive_definite": true,
+        "minimum_linear_covariance_eigenvalue": 0.52396103971838,
+        "minimum_directional_covariance_eigenvalue": 0.11355813691534203,
+        "first_layer_pairwise_euclidean_mean_distances": [
+          0.24964775184247104,
+          0.245246814454337,
+          0.4946695866939871
+        ],
+        "second_layer_pairwise_mean_direction_angles_degrees": [
+          22.0,
+          8.33333333,
+          30.33333333,
+          16.66666667,
+          38.66666667,
+          13.66666667,
+          8.33333333,
+          5.33333333,
+          16.66666667,
+          22.0,
+          8.33333333,
+          30.33333333,
+          13.66666667,
+          8.33333333,
+          22.0
+        ],
+        "independent_case_has_identical_directional_mixtures_across_regimes": true
+      },
+      "hier-projmix-3d-low-ind": {
+        "all_covariances_symmetric": true,
+        "all_covariances_positive_definite": true,
+        "minimum_linear_covariance_eigenvalue": 0.52396103971838,
+        "minimum_directional_covariance_eigenvalue": 0.11355813691534203,
+        "first_layer_pairwise_euclidean_mean_distances": [
+          0.24964775184247104,
+          0.245246814454337,
+          0.4946695866939871
+        ],
+        "second_layer_pairwise_mean_direction_angles_degrees": [
+          22.0,
+          1.21e-06,
+          22.0,
+          1.21e-06,
+          22.0,
+          22.0,
+          0.0,
+          22.0,
+          0.0,
+          22.0,
+          1.21e-06,
+          22.0,
+          22.0,
+          0.0,
+          22.0
+        ],
+        "independent_case_has_identical_directional_mixtures_across_regimes": true
+      },
+      "hier-projmix-3d-high-strong": {
+        "all_covariances_symmetric": true,
+        "all_covariances_positive_definite": true,
+        "minimum_linear_covariance_eigenvalue": 0.52396103971838,
+        "minimum_directional_covariance_eigenvalue": 0.11355813691534203,
+        "first_layer_pairwise_euclidean_mean_distances": [
+          1.4978865110548263,
+          1.4714808867260218,
+          2.9680175201639223
+        ],
+        "second_layer_pairwise_mean_direction_angles_degrees": [
+          49.5,
+          56.25,
+          105.75,
+          112.5,
+          162.0,
+          6.75,
+          56.25,
+          63.0,
+          112.5,
+          49.5,
+          56.25,
+          105.75,
+          6.75,
+          56.25,
+          49.5
+        ],
+        "independent_case_has_identical_directional_mixtures_across_regimes": true
+      },
+      "hier-projmix-3d-high-weak": {
+        "all_covariances_symmetric": true,
+        "all_covariances_positive_definite": true,
+        "minimum_linear_covariance_eigenvalue": 0.52396103971838,
+        "minimum_directional_covariance_eigenvalue": 0.11355813691534203,
+        "first_layer_pairwise_euclidean_mean_distances": [
+          1.4978865110548263,
+          1.4714808867260218,
+          2.9680175201639223
+        ],
+        "second_layer_pairwise_mean_direction_angles_degrees": [
+          49.5,
+          18.75,
+          68.25,
+          37.5,
+          87.0,
+          30.75,
+          18.75,
+          12.0,
+          37.5,
+          49.5,
+          18.75,
+          68.25,
+          30.75,
+          18.75,
+          49.5
+        ],
+        "independent_case_has_identical_directional_mixtures_across_regimes": true
+      },
+      "hier-projmix-3d-high-ind": {
+        "all_covariances_symmetric": true,
+        "all_covariances_positive_definite": true,
+        "minimum_linear_covariance_eigenvalue": 0.52396103971838,
+        "minimum_directional_covariance_eigenvalue": 0.11355813691534203,
+        "first_layer_pairwise_euclidean_mean_distances": [
+          1.4978865110548263,
+          1.4714808867260218,
+          2.9680175201639223
+        ],
+        "second_layer_pairwise_mean_direction_angles_degrees": [
+          49.5,
+          0.0,
+          49.5,
+          0.0,
+          49.5,
+          49.5,
+          0.0,
+          49.5,
+          0.0,
+          49.5,
+          0.0,
+          49.5,
+          49.5,
+          0.0,
+          49.5
+        ],
+        "independent_case_has_identical_directional_mixtures_across_regimes": true
+      }
+    },
+    "monte_carlo_seed": 20260722
+  }
+}
