@@ -9,7 +9,7 @@ import numpy as np
 from ..core.types import Array, ArrayLike
 
 RandomStateLike = Optional[Union[int, np.random.RandomState]]
-_RESULTANT_DENOM_EPS = 1e-12
+_RESULTANT_DENOM_EPS = 1e-6
 
 
 def _resolve_rng(rng: RandomStateLike) -> np.random.RandomState:
