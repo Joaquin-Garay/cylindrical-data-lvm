@@ -24,6 +24,7 @@ class MultivariateGaussian(ExponentialFamily):
         self._d = self._validate_positive_int(d, name="d", minimum=1)
         self._mean = np.zeros(self._d, dtype=float) if mean is None else np.asarray(mean, dtype=float)
         self._covariance = np.eye(self._d, dtype=float) if covariance is None else np.asarray(covariance, dtype=float)
+        self._em_n_min = self._d + 1
         self._validate()
         self._cache()
 
@@ -48,6 +49,10 @@ class MultivariateGaussian(ExponentialFamily):
     @property
     def d(self) -> int:
         return self._d
+
+    @property
+    def em_n_min(self) -> int:
+        return self._em_n_min
 
     @property
     def params(self) -> Tuple[Array, Array]:

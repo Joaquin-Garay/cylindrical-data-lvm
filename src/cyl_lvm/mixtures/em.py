@@ -124,6 +124,43 @@ def m_step(model: "MixtureModel",
     for j, comp in enumerate(model.components):
         comp.fit(x, sample_weight=sample_weight * r[:, j], case=m_step_case)
 
+
+def _component_effective_sample_sizes(r: Array, sample_weight: Array) -> Array:
+    component_weights = sample_weight[:, None] * r
+    total_weight = np.sum(component_weights, axis=0)
+    sum_squared_weight = np.sum(component_weights * component_weights, axis=0)
+    return np.divide(
+        total_weight * total_weight,
+        sum_squared_weight,
+        out=np.zeros_like(total_weight, dtype=float),
+        where=sum_squared_weight > 0.0,
+    )
+
+
+def _validate_component_effective_sample_sizes(
+    model: "MixtureModel",
+    r: Array,
+    sample_weight: Array,
+) -> None:
+    n_eff = _component_effective_sample_sizes(r, sample_weight)
+    for j, (comp, n_eff_j) in enumerate(zip(model.components, n_eff)):
+        n_min = getattr(comp, "em_n_min", None)
+        if n_min is None:
+            continue
+
+        n_min = float(n_min)
+        if not np.isfinite(n_min) or n_min <= 0.0:
+            raise ValueError(
+                f"Component {j} has invalid em_n_min={n_min!r}; "
+                "expected a positive finite value."
+            )
+        if n_eff_j < n_min:
+            raise RuntimeWarning(
+                f"Component {j} effective sample size {n_eff_j:.6g} "
+                f"is below em_n_min={n_min:.6g}."
+            )
+
+
 def fit_em(model: "MixtureModel",
            x: Array,
            sample_weight: Sequence[float] = None,
@@ -152,6 +189,8 @@ def fit_em(model: "MixtureModel",
         # C-step: One-hot encoding of posterior matrix
         if c_step_bool:
             r = c_step(r)
+
+        _validate_component_effective_sample_sizes(model, r, sample_weight)
 
         # M-step: Maximize sample-weighted data log likelihood
         m_step(model, r, x, sample_weight, m_step_case, verbose)

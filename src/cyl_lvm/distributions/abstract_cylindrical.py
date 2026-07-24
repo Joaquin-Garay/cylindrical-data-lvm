@@ -35,6 +35,11 @@ class AbstractCylindrical(ABC):
 
     @property
     @abstractmethod
+    def unconditional_gauss_cov(self) -> Array:
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
     def cond_cov(self) -> Array:
         raise NotImplementedError
 
@@ -42,6 +47,14 @@ class AbstractCylindrical(ABC):
     @abstractmethod
     def vmf(self) -> Any:
         raise NotImplementedError
+
+    @property
+    def full_cov(self) -> Array:
+        cov = np.block([
+            [self.unconditional_gauss_cov, self.cross_cov],
+            [self.cross_cov.T, (1.0/self.vmf.kappa) * np.eye(self.d_vmf)]
+        ])
+        return cov
 
     @staticmethod
     def _validate_comparable(

@@ -435,6 +435,19 @@ class TwoLayerMoM(Distribution):
         ll = self.log_pdf(layer1_data, layer2_data).sum()
         return penalty - 2 * ll
 
+    def aic_score(self, layer1_data, layer2_data) -> float:
+        """
+        Compute Akaike Information Criterion (AIC).
+
+        Lower values indicate a better trade-off between fit and complexity.
+        """
+        layer1_data = np.asarray(layer1_data, dtype=float)
+        layer2_data = np.asarray(layer2_data, dtype=float)
+
+        penalty = 2 * self.n_free_params()
+        ll = self.log_pdf(layer1_data, layer2_data).sum()
+        return penalty - 2 * ll
+
     def completed_bic_score(self, layer1_data, layer2_data):
         """
         Compute complete-data BIC using hard component assignments.
@@ -493,3 +506,11 @@ class TwoLayerMoM(Distribution):
     def score(self, layer1_data: Array, layer2_data: Array) -> float:
         """Average log-likelihood per sample (sklearn-style)."""
         return float(self.log_pdf(layer1_data, layer2_data).mean())
+
+    def gmpd(self, layer1_data: Array, layer2_data: Array) -> float:
+        """Exponential of average log-likelihood per sample (sklearn-style)."""
+        return float(np.exp(self.log_pdf(layer1_data, layer2_data).mean()))
+
+    def predict(self, layer1_data: Array, layer2_data: Array) -> Array:
+        """Hard labels via argmax of first-layer posterior responsibilities."""
+        return np.argmax(self.l1_responsibilities(layer1_data, layer2_data), axis=1)

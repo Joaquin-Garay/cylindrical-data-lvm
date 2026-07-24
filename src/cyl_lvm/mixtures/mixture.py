@@ -320,6 +320,17 @@ class MixtureModel(Distribution):
         ll = self.log_pdf(x).sum()
         return penalty - 2 * ll
 
+    def aic_score(self, x: Array) -> float:
+        """
+        Compute Akaike Information Criterion (AIC).
+
+        Lower values indicate a better trade-off between fit and complexity.
+        """
+        x = np.asarray(x, dtype=float)
+        penalty = 2 * self.n_free_params()
+        ll = self.log_pdf(x).sum()
+        return penalty - 2 * ll
+
     # ---- Display ----
     @staticmethod
     def _format_component(idx: int, w: float | None, comp) -> str:
@@ -349,6 +360,12 @@ class MixtureModel(Distribution):
     def predict(self, x: Array) -> Array:
         """Hard labels via argmax of posterior responsibilities."""
         return np.argmax(self.get_posteriors(x), axis=1)
+
+    def gmpd(self, x: Array) -> float:
+        """Exponential of average log-likelihood per sample (sklearn-style).
+            AKA. Geometric Mean Predictive/Fitted Density (GMPD/GMFD) """
+        x = np.asarray(x, dtype=float)
+        return float(np.exp(self.log_pdf(x).mean()))
 
     def score(self, x: Array) -> float:
         """Average log-likelihood per sample (sklearn-style)."""

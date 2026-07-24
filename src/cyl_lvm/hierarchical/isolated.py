@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 
 from .two_layer import TwoLayerMoM
-from ..core import _EPS, ArrayLike
+from ..core import _EPS, ArrayLike, Array
 
 
 class IsolatedTwoLayerMoM(TwoLayerMoM):
@@ -105,3 +105,7 @@ class IsolatedTwoLayerMoM(TwoLayerMoM):
 
         self.n_iter = layer1_counter + layer2_counter
         return self
+
+    def predict(self, layer1_data: Array, layer2_data: Array) -> Array:
+        """Hard labels via argmax of first-layer posterior responsibilities."""
+        return self.layer1_mixture.predict(layer1_data)

@@ -115,6 +115,7 @@ class Cylindrical(AbstractCylindrical, Distribution):
 
         self._validate_params()
         self._cache()
+        self._em_n_min = self._d_gauss + self._d_vmf + 1
         self._cond_gauss = MultivariateGaussian(
             self._d_gauss,
             mean=np.zeros(self._d_gauss, dtype=float),
@@ -128,6 +129,17 @@ class Cylindrical(AbstractCylindrical, Distribution):
             np.linalg.cholesky(matrix)
         except np.linalg.LinAlgError as e:
             raise ValueError(f"{name} must be positive-definite.") from e
+
+    @staticmethod
+    def _project_to_positive_definite(matrix: Array, *, floor: float) -> Array:
+        if not np.isfinite(floor) or floor <= 0.0:
+            raise ValueError("floor must be a finite positive scalar.")
+
+        matrix = 0.5 * (matrix + matrix.T)
+        eigvals, eigvecs = np.linalg.eigh(matrix)
+        eigvals = np.maximum(eigvals, floor)
+        projected = (eigvecs * eigvals) @ eigvecs.T
+        return 0.5 * (projected + projected.T)
 
     def _validate_cross_corr(self, cross_corr: Array) -> Array:
         cross_corr = self._validate_matrix(
@@ -183,6 +195,10 @@ class Cylindrical(AbstractCylindrical, Distribution):
     @property
     def d_total(self) -> int:
         return self._d_gauss + self._d_vmf
+
+    @property
+    def em_n_min(self) -> int:
+        return self._em_n_min
 
     @property
     def mu_gauss(self) -> Array:
@@ -297,10 +313,13 @@ class Cylindrical(AbstractCylindrical, Distribution):
             x_vmf: Optional[Array] = None,
             sample_weight: Optional[Array] = None,
             case: str = None,
-            ridge: float = 1e-6,
+            eps_dir_scatter: float = 1e-6,
+            eps_cond_cov: float = 1e-6,
     ) -> "Cylindrical":
-        if not np.isfinite(ridge) or ridge < 0.0:
-            raise ValueError("ridge must be a finite nonnegative scalar.")
+        if not np.isfinite(eps_dir_scatter) or eps_dir_scatter < 0.0:
+            raise ValueError("Epsilon for directional scatter matrix must be a finite nonnegative scalar.")
+        if not np.isfinite(eps_cond_cov) or eps_cond_cov < 0.0:
+            raise ValueError("Epsilon for Gaussian conditional covariance must be a finite nonnegative scalar.")
         if x_vmf is None:
             x_joint = self._validate_input_matrix(
                 x_gauss,
@@ -326,15 +345,14 @@ class Cylindrical(AbstractCylindrical, Distribution):
         cov_11 = s_11 - np.outer(s_1, s_1)
         cov_12 = s_12 - np.outer(s_1, s_2)
         cov_22 = s_22 - np.outer(s_2, s_2)
-        cov_22 += ridge * np.eye(self._d_vmf, dtype=float)
+        cov_22 += eps_dir_scatter * np.eye(self._d_vmf, dtype=float)
 
         cross_factor = np.linalg.solve(cov_22, cov_12.T).T # cov_12 @ cov_22^(-1)
         self._cross_cov = cross_factor / kappa
         self._mu_gauss = s_1 - cross_factor @ (s_2 - mu_vmf)
         self._cond_cov = cov_11 - cross_factor @ cov_12.T
-        #enforce symmetry
-        self._cond_cov = 0.5 * (self._cond_cov + self._cond_cov.T)
-        self._cond_cov += 1e-6 * np.eye(self._d_gauss, dtype=float)
+        self._cond_cov = self._project_to_positive_definite(self._cond_cov,
+                                                            floor=eps_cond_cov)
 
         self._validate_params()
         self._cache()
