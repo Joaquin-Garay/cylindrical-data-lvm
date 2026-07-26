@@ -514,3 +514,17 @@ class TwoLayerMoM(Distribution):
     def predict(self, layer1_data: Array, layer2_data: Array) -> Array:
         """Hard labels via argmax of first-layer posterior responsibilities."""
         return np.argmax(self.l1_responsibilities(layer1_data, layer2_data), axis=1)
+
+    def predict_full(self, layer1_data: Array, layer2_data: Array) -> Array:
+        """Hard labels for both the first and second layers."""
+        l1_labels = self.predict(layer1_data, layer2_data)  # (N,)
+        l2_resp = self.l2_responsibilities(layer2_data)  # (N, K, K2_max)
+
+        rows = np.arange(l1_labels.shape[0])
+        selected_l2_resp = l2_resp[rows, l1_labels, :]  # (N, K2_max)
+        l2_labels = np.argmax(selected_l2_resp, axis=1)  # (N,)
+
+        return np.column_stack((l1_labels, l2_labels))  # (N, 2)
+
+
+

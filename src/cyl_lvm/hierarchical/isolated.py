@@ -105,7 +105,3 @@ class IsolatedTwoLayerMoM(TwoLayerMoM):
 
         self.n_iter = layer1_counter + layer2_counter
         return self
-
-    def predict(self, layer1_data: Array, layer2_data: Array) -> Array:
-        """Hard labels via argmax of first-layer posterior responsibilities."""
-        return self.layer1_mixture.predict(layer1_data)

@@ -162,6 +162,11 @@ def ari_model(model, labels, X_eval, d_gauss):
     """Adjusted Rand index for a model evaluated on synthetic experiment data."""
     return clvm.ari(labels, predict_model(model, X_eval, d_gauss))
 
+def ari_full_model(model, labels_compact, X_eval, d_gauss):
+    """Adjusted Rand index for a model evaluated on synthetic experiment data."""
+    model_labels = model.predict_full(*_split_eval_data(X_eval, d_gauss))
+    _, model_labels_compact = np.unique(model_labels, axis=0, return_inverse=True)
+    return clvm.ari(labels_compact, model_labels_compact)
 
 def score_model(model, X_eval, d_gauss, score_type: str = "score"):
     score_methods = {
