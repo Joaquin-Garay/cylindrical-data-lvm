@@ -8,6 +8,7 @@ from typing import Any, Optional, Tuple
 import numpy as np
 
 from ...core.types import Array
+from ...utils.checks import validate_bregman_fit_case
 from ..base import Distribution
 
 
@@ -37,12 +38,13 @@ class ExponentialFamily(Distribution, ABC):
         self,
         x: Array,
         sample_weight: Optional[Array] = None,
-        case: str = "classic",
+        case: str | None = None,
     ) -> "ExponentialFamily":
         """
         Fit model parameters in-place and return self.
 
-        Supported ``case`` values: ``classic``, ``bregman``.
+        Bregman fitting is the only supported update.  The ``case`` keyword is
+        deprecated and may only be ``None`` or ``"bregman"``.
         """
         raise NotImplementedError
 
@@ -55,9 +57,8 @@ class ExponentialFamily(Distribution, ABC):
         return cls._normalize_sample_weight(w, w.shape[0])
 
     @staticmethod
-    def _validate_case(case: str) -> None:
-        if case not in {"classic", "bregman"}:
-            raise ValueError("case must be one of {'classic', 'bregman'}.")
+    def _validate_case(case: str | None) -> None:
+        validate_bregman_fit_case(case, stacklevel=3)
 
     def _input_process(
         self,

@@ -9,7 +9,7 @@ from scipy.special import logsumexp
 from ..core import _EPS
 from ..core.types import Array
 from .initialization import initialize_model
-from ..utils.checks import validate_sample_weight
+from ..utils.checks import validate_bregman_fit_case, validate_sample_weight
 if TYPE_CHECKING:
     from .mixture import MixtureModel
 
@@ -93,7 +93,7 @@ def m_step(model: "MixtureModel",
            r: Array,
            x: Array,
            sample_weight: Sequence[float] = None,
-           m_step_case: str = "classic",
+           m_step_case: str | None = None,
            verbose: bool = False) -> None:
     """
     Update mixture weights and component parameters for one M-step.
@@ -103,12 +103,17 @@ def m_step(model: "MixtureModel",
         r: Responsibilities of shape (n_samples, n_components).
         x: Input samples of shape (n_samples,) or (n_samples, n_features).
         sample_weight: Optional sample weights of shape (n_samples,).
-        m_step_case: Component fitting mode passed to comp.fit.
+        m_step_case: Deprecated; only ``None`` or ``"bregman"`` is supported.
         verbose: If True, print numerical stabilization messages.
 
     Returns:
         None.
     """
+    validate_bregman_fit_case(
+        m_step_case,
+        parameter_name="m_step_case",
+        stacklevel=3,
+    )
     x = np.asarray(x, dtype=float)
     sample_weight = validate_sample_weight(x, sample_weight)
 
@@ -122,7 +127,7 @@ def m_step(model: "MixtureModel",
         model.weights = (model.weights + _EPS) / (1 + model.n_components * _EPS)
     # update distribution parameters
     for j, comp in enumerate(model.components):
-        comp.fit(x, sample_weight=sample_weight * r[:, j], case=m_step_case)
+        comp.fit(x, sample_weight=sample_weight * r[:, j])
 
 
 def _component_effective_sample_sizes(r: Array, sample_weight: Array) -> Array:
@@ -166,7 +171,7 @@ def fit_em(model: "MixtureModel",
            sample_weight: Sequence[float] = None,
            tol: float = 1e-4,
            max_iter: int = 1000,
-           m_step_case: str = "classic",
+           m_step_case: str | None = None,
            c_step_bool: bool = False,
            verbose: bool = False) -> Tuple[Sequence[float], int]:
     """
@@ -175,6 +180,11 @@ def fit_em(model: "MixtureModel",
     """
     x = np.asarray(x, dtype=float)
     sample_weight = validate_sample_weight(x, sample_weight)
+    validate_bregman_fit_case(
+        m_step_case,
+        parameter_name="m_step_case",
+        stacklevel=3,
+    )
     if not model.is_initialized:
         initialize_model(model, x, sample_weight)
 
@@ -193,7 +203,7 @@ def fit_em(model: "MixtureModel",
         _validate_component_effective_sample_sizes(model, r, sample_weight)
 
         # M-step: Maximize sample-weighted data log likelihood
-        m_step(model, r, x, sample_weight, m_step_case, verbose)
+        m_step(model, r, x, sample_weight, None, verbose)
 
         # check convergence
         if it > 5 and abs(logger[-1] - logger[-2]) < tol:

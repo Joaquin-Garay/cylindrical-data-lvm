@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Callable, Optional, Sequence
 import numpy as np
 
 from ..core.types import Array
+from ..utils.checks import validate_bregman_fit_case
 
 if TYPE_CHECKING:
     from ..mixtures.mixture import MixtureModel
@@ -169,7 +170,7 @@ def calibrate_mixture_by_cv_grid_search(
         ] = None,
         tol: float = 1e-4,
         max_iter: int = 300,
-        m_step_case: str = "bregman",
+        m_step_case: str | None = None,
         c_step_bool: bool = False,
         verbose: bool = False,
         random_state: Optional[int] = 42,
@@ -210,7 +211,8 @@ def calibrate_mixture_by_cv_grid_search(
         Builder receiving ``(n_components, init, rng)`` and returning a fresh
         ``MixtureModel``. If ``None``, a Gaussian default is used.
     tol, max_iter, m_step_case, c_step_bool, verbose :
-        Training options forwarded to ``MixtureModel.fit``.
+        Training options forwarded to ``MixtureModel.fit``. ``m_step_case`` is
+        deprecated; Bregman updates are always used.
     random_state : int or None, default=42
         Master seed controlling fold shuffle and all restart seeds.
     fail_fast : bool, default=False
@@ -256,6 +258,11 @@ def calibrate_mixture_by_cv_grid_search(
     if not isinstance(n_restarts, (int, np.integer)) or int(n_restarts) < 1:
         raise ValueError("n_restarts must be an integer >= 1.")
     n_restarts = int(n_restarts)
+    validate_bregman_fit_case(
+        m_step_case,
+        parameter_name="m_step_case",
+        stacklevel=3,
+    )
     selection = _validate_selection(selection)
     score_metric = _validate_score_metric(score_metric)
     metric_higher_is_better = _score_metric_higher_is_better(score_metric)
@@ -331,7 +338,7 @@ def calibrate_mixture_by_cv_grid_search(
                         tol=tol,
                         max_iter=max_iter,
                         verbose=verbose,
-                        m_step_case=m_step_case,
+                        m_step_case=None,
                         c_step_bool=c_step_bool,
                     )
                     ll_val = np.asarray(model.log_pdf(x[val_idx]), dtype=float)
@@ -474,7 +481,7 @@ def calibrate_mixture_by_cv_grid_search(
         tol=tol,
         max_iter=max_iter,
         verbose=verbose,
-        m_step_case=m_step_case,
+        m_step_case=None,
         c_step_bool=c_step_bool,
     )
 
@@ -536,7 +543,7 @@ def calibrate_mom_by_cv_grid_search(
         ] = None,
         tol: float = 1e-4,
         max_iter: int = 300,
-        m_step_case: str = "classic",
+        m_step_case: str | None = None,
         c_step_bool: bool = False,
         verbose: bool = False,
         random_state: Optional[int] = 42,
@@ -582,7 +589,8 @@ def calibrate_mom_by_cv_grid_search(
         and returning a fresh ``TwoLayerMoM``. If ``None``, a Gaussian+VonMises
         default builder is used.
     tol, max_iter, m_step_case, c_step_bool, verbose :
-        Training options forwarded to ``TwoLayerMoM.fit``.
+        Training options forwarded to ``TwoLayerMoM.fit``. ``m_step_case`` is
+        deprecated; Bregman updates are always used.
     random_state : int or None, default=42
         Master seed controlling fold shuffle and all restart seeds.
     fail_fast : bool, default=False
@@ -631,6 +639,11 @@ def calibrate_mom_by_cv_grid_search(
     if not isinstance(n_restarts, (int, np.integer)) or int(n_restarts) < 1:
         raise ValueError("n_restarts must be an integer >= 1.")
     n_restarts = int(n_restarts)
+    validate_bregman_fit_case(
+        m_step_case,
+        parameter_name="m_step_case",
+        stacklevel=3,
+    )
     selection = _validate_selection(selection)
     score_metric = _validate_score_metric(score_metric)
     metric_higher_is_better = _score_metric_higher_is_better(score_metric)
@@ -696,7 +709,7 @@ def calibrate_mom_by_cv_grid_search(
                             tol=tol,
                             max_iter=max_iter,
                             verbose=verbose,
-                            m_step_case=m_step_case,
+                            m_step_case=None,
                             c_step_bool=c_step_bool,
                         )
                         n_iter = model.n_iter
@@ -855,7 +868,7 @@ def calibrate_mom_by_cv_grid_search(
         tol=tol,
         max_iter=max_iter,
         verbose=verbose,
-        m_step_case=m_step_case,
+        m_step_case=None,
         c_step_bool=c_step_bool,
     )
     best_n_iter = best_model.n_iter

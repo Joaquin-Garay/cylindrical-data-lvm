@@ -262,7 +262,7 @@ class MixtureModel(Distribution):
         r: Array,
         x: Array,
         sample_weight: Array = None,
-        m_step_case: str = "classic",
+        m_step_case: str | None = None,
         verbose: bool = False):
         """
         See mixtures/em.py
@@ -277,12 +277,13 @@ class MixtureModel(Distribution):
             tol: float = 1e-4,
             max_iter: int = 1000,
             verbose: bool = False,
-            m_step_case: str = "classic",
+            m_step_case: str | None = None,
             c_step_bool: bool = False,
             ) -> "MixtureModel":
         """
         Perform the Expectation-Maximization algorithm to fit a mixture model.
         It stops as soon as the absolute difference between two iterations is below the tolerance.
+        ``m_step_case`` is deprecated; Bregman updates are always used.
         """
         x = np.asarray(x, dtype=float)
 

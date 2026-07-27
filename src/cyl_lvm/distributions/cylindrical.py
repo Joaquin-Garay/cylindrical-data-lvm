@@ -5,6 +5,7 @@ from typing import Optional, Tuple
 import numpy as np
 
 from ..core.types import Array
+from ..utils.checks import validate_bregman_fit_case
 from .abstract_cylindrical import AbstractCylindrical
 from .base import Distribution
 from .expfam import MultivariateGaussian, VonMisesFisher
@@ -312,10 +313,11 @@ class Cylindrical(AbstractCylindrical, Distribution):
             x_gauss: Array,
             x_vmf: Optional[Array] = None,
             sample_weight: Optional[Array] = None,
-            case: str = None,
+            case: str | None = None,
             eps_dir_scatter: float = 1e-6,
             eps_cond_cov: float = 1e-6,
     ) -> "Cylindrical":
+        validate_bregman_fit_case(case, stacklevel=3)
         if not np.isfinite(eps_dir_scatter) or eps_dir_scatter < 0.0:
             raise ValueError("Epsilon for directional scatter matrix must be a finite nonnegative scalar.")
         if not np.isfinite(eps_cond_cov) or eps_cond_cov < 0.0:
@@ -332,7 +334,7 @@ class Cylindrical(AbstractCylindrical, Distribution):
         n_obs = x_gauss.shape[0]
         weights = self._normalize_sample_weight(sample_weight, n_obs)
 
-        self._vmf.fit(x_vmf, sample_weight=weights, case="bregman")
+        self._vmf.fit(x_vmf, sample_weight=weights)
         kappa = self._vmf.kappa
         mu_vmf = self._vmf.mu
 

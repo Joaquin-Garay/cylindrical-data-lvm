@@ -6,6 +6,7 @@ import numpy as np
 
 from .two_layer import TwoLayerMoM
 from ..core import _EPS, ArrayLike, Array
+from ..utils.checks import validate_bregman_fit_case
 
 
 class IsolatedTwoLayerMoM(TwoLayerMoM):
@@ -17,7 +18,7 @@ class IsolatedTwoLayerMoM(TwoLayerMoM):
             tol: float = 1e-4,
             max_iter: int = 1000,
             verbose: bool = False,
-            m_step_case: str = "classic",
+            m_step_case: str | None = None,
             c_step_bool: bool = False,
             ) -> "IsolatedTwoLayerMoM":
         """
@@ -39,8 +40,8 @@ class IsolatedTwoLayerMoM(TwoLayerMoM):
             Maximum EM iterations per mixture.
         verbose : bool, default=False
             If True, print optimization progress.
-        m_step_case : str, default="classic"
-            M-step variant forwarded to underlying mixtures.
+        m_step_case : str or None, default=None
+            Deprecated; Bregman updates are always used.
         c_step_bool : bool, default=False
             If True, use classification EM where supported.
 
@@ -55,6 +56,12 @@ class IsolatedTwoLayerMoM(TwoLayerMoM):
             If first-layer and second-layer sample counts mismatch, or if
             classification EM is requested with incompatible initialization.
         """
+
+        validate_bregman_fit_case(
+            m_step_case,
+            parameter_name="m_step_case",
+            stacklevel=3,
+        )
 
         if c_step_bool and not all(m.init == "k-means" for m in self.layer2_mixtures):
             raise ValueError(
@@ -72,7 +79,7 @@ class IsolatedTwoLayerMoM(TwoLayerMoM):
                                 tol=tol,
                                 max_iter=max_iter,
                                 verbose=verbose,
-                                m_step_case=m_step_case,
+                                m_step_case=None,
                                 c_step_bool=c_step_bool)
         layer1_counter = self.layer1_mixture.n_iter
 
@@ -97,7 +104,7 @@ class IsolatedTwoLayerMoM(TwoLayerMoM):
                                               tol=tol,
                                               max_iter=max_iter,
                                               verbose=verbose,
-                                              m_step_case=m_step_case,
+                                              m_step_case=None,
                                               c_step_bool=c_step_bool,
                                               )
             l2_comp_counter = self.layer2_mixtures[l1_comp].n_iter

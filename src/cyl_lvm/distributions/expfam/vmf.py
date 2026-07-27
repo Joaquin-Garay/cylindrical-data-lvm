@@ -302,7 +302,7 @@ class VonMisesFisher(ExponentialFamily):
         self,
         x: Array,
         sample_weight: Optional[Array] = None,
-        case: str = "bregman",
+        case: str | None = None,
     ) -> "VonMisesFisher":
 
         self._validate_case(case)

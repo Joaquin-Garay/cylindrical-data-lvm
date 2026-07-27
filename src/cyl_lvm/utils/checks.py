@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from typing import Sequence
 
 import numpy as np
@@ -50,3 +51,32 @@ def validate_sample_weight(x: Array, sample_weight: Sequence[float] | None) -> A
     if total <= 0.0:
         raise ValueError("sample_weight must sum to a positive value.")
     return w / total
+
+
+def validate_bregman_fit_case(
+    case: str | None,
+    *,
+    parameter_name: str = "case",
+    stacklevel: int = 2,
+) -> None:
+    """
+    Validate the deprecated fit-case selector.
+
+    ``None`` means the caller is using the current default behavior.  The
+    legacy string selector remains accepted only for ``"bregman"`` during the
+    deprecation window.
+    """
+    if case is None:
+        return
+    if not isinstance(case, str):
+        raise TypeError(f"{parameter_name} must be None or 'bregman'.")
+    if case.lower() != "bregman":
+        raise ValueError(
+            f"{parameter_name} is deprecated; only 'bregman' is supported."
+        )
+    warnings.warn(
+        f"{parameter_name} is deprecated and ignored; Bregman fitting is now "
+        "the only supported update.",
+        DeprecationWarning,
+        stacklevel=stacklevel,
+    )

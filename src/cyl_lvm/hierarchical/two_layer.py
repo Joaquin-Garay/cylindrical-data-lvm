@@ -17,6 +17,7 @@ from ..metrics.model_selection import _num_free_params_for_component
 from ..utils import (
     validate_sample_weight
 )
+from ..utils.checks import validate_bregman_fit_case
 
 class TwoLayerMoM(Distribution):
     """
@@ -203,7 +204,7 @@ class TwoLayerMoM(Distribution):
             tol: float = 1e-4,
             max_iter: int = 1000,
             verbose: bool = False,
-            m_step_case: str = "classic",
+            m_step_case: str | None = None,
             c_step_bool: bool = False,
             ) -> "TwoLayerMoM":
         """
@@ -216,7 +217,13 @@ class TwoLayerMoM(Distribution):
 
         Convergence is monitored with a logger of sample-weighted
         observed-data log-likelihood values.
+        ``m_step_case`` is deprecated; Bregman updates are always used.
         """
+        validate_bregman_fit_case(
+            m_step_case,
+            parameter_name="m_step_case",
+            stacklevel=3,
+        )
         if c_step_bool and not all(m.init == "k-means" for m in self.layer2_mixtures):
             raise ValueError(
                 "Classification EM requires 'k-means' initialization for all layer-2 mixtures."
@@ -274,7 +281,6 @@ class TwoLayerMoM(Distribution):
                 layer1_comp.fit(
                     layer1_data,
                     sample_weight=sample_weight * layer1_posteriors[:, i],
-                    case=m_step_case,
                 )
 
             # M-step: layer 2
@@ -308,7 +314,6 @@ class TwoLayerMoM(Distribution):
                     layer2_comp.fit(
                         layer2_data,
                         sample_weight=layer1_weight_i * layer2_posteriors_i[:, j],
-                        case=m_step_case,
                     )
 
             # Convergence check
@@ -525,6 +530,5 @@ class TwoLayerMoM(Distribution):
         l2_labels = np.argmax(selected_l2_resp, axis=1)  # (N,)
 
         return np.column_stack((l1_labels, l2_labels))  # (N, 2)
-
 
 

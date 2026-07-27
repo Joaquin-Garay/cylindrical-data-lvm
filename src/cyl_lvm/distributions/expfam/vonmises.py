@@ -6,7 +6,6 @@ from typing import Optional, Tuple
 
 import numpy as np
 from scipy.special import i0e, i1e
-from scipy.optimize import minimize
 
 from ...core.types import Array
 from .base import ExponentialFamily
@@ -202,7 +201,7 @@ class VonMises(ExponentialFamily):
         self,
         x: Array,
         sample_weight: Optional[Array] = None,
-        case: str = "bregman",
+        case: str | None = None,
     ) -> "VonMises":
 
         self._validate_case(case)
@@ -210,46 +209,8 @@ class VonMises(ExponentialFamily):
         x, sample_weight = self._input_process(x, sample_weight)
         x = self._validate_input_matrix(x, n_features=2, name="x")
 
-        match case:
-            case "bregman":
-                # Compute dual/expectation parameters using sufficient statistics.
-                eta = np.average(x, axis=0, weights=sample_weight)
-                loc = np.arctan2(eta[1], eta[0])
-                R = np.minimum(np.linalg.norm(eta, ord=None), self._MAX_A)
-                kappa = self._inv_mean_length(R)
-
-                self._loc, self._kappa = loc, kappa
-                self._validate()
-                self._update_params()
-
-            case "classic":
-                # Compute MLE with numerical optimizer
-                const = np.log(2 * np.pi)
-
-                def neg_ll(params):
-                    loc, kappa = params
-                    if kappa <= 0:
-                        return np.inf
-                    # i0e(kappa) = exp(-kappa)*i0(kappa)
-                    # -log(i0(kappa)) = -log(i0e(kappa)) - kappa
-                    ll = np.sum(sample_weight * (kappa * (np.cos(loc) * x[:, 0]
-                                                          + np.sin(loc) * x[:, 1])
-                                                 - np.log(i0e(kappa)) - kappa - const))
-                    return -ll  # minimize negative
-
-                C = np.sum(sample_weight * x[:, 0])
-                S = np.sum(sample_weight * x[:, 1])
-                initials = np.array([np.arctan2(S, C), self._kappa])
-                bnds = ((-np.pi, np.pi), (1e-6, 50.0))
-                result = minimize(
-                    fun=neg_ll,
-                    x0=initials,
-                    method="L-BFGS-B",
-                    bounds=bnds
-                )
-                self._loc, self._kappa = result.x
-                self._validate()
-                self._update_params()
+        eta = np.average(x, axis=0, weights=sample_weight)
+        self.dual_param = eta
         return self
 
     def __repr__(self):

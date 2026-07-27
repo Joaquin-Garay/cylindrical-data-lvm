@@ -107,28 +107,18 @@ class UnivariateGaussian(ExponentialFamily):
     def fit(self,
             x: Array,
             sample_weight: Optional[Array] = None,
-            case: str = "classic",
+            case: str | None = None,
             ) -> "UnivariateGaussian":
 
         self._validate_case(case)
         x, sample_weight = self._input_process(x, sample_weight)
         if x.ndim == 2:
             x = self._validate_input_matrix(x, n_features=1, name="x")[:, 0]
-        match case:
-            case "bregman":
-                # compute dual/expectation parameters using sufficient statistics.
-                eta = np.array([np.average(x, weights=sample_weight),
-                                np.average(x ** 2, weights=sample_weight)])
-                self.dual_param = eta
-            case _:
-                mu = np.average(x, weights=sample_weight)
-                diff = x - mu
-                variance = np.inner(sample_weight * diff, diff)
-
-                self._mean = mu
-                self._variance = variance
-                self._validate()
-                self._update_params()
+        eta = np.array([
+            np.average(x, weights=sample_weight),
+            np.average(x ** 2, weights=sample_weight),
+        ])
+        self.dual_param = eta
         return self
 
     def __repr__(self) -> str:

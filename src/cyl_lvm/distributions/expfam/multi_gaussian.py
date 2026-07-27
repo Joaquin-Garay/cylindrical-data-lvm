@@ -163,34 +163,14 @@ class MultivariateGaussian(ExponentialFamily):
     def fit(self,
             x: Array,
             sample_weight: Optional[Array] = None,
-            case: str = "classic",
+            case: str | None = None,
             ) -> "MultivariateGaussian":
         self._validate_case(case)
         x, sample_weight = self._input_process(x, sample_weight)
         x = self._validate_input_matrix(x, n_features=self.d, name="x")
-        match case:
-            case "bregman":
-                # Compute MLE via minimization of Bregman divergence
-                # form sufficient stats and average
-                suf_stat = self.get_sufficient_stat(x)  # shape (n, d + d^2)
-                dual = np.average(suf_stat, axis=0, weights=sample_weight)  # length d + d^2
-                # update params
-                self.dual_param = dual
-                self._validate()
-                self._cache()
-            case _:
-                # Compute MLE via analytical solution of ordinary-coordinates parameters
-                mu = np.average(x, axis=0, weights=sample_weight)
-                diff = x - mu
-                # Broadcasting weights to columns; (n,1) * (n,d) -> weighted rows
-                weighted_diff = sample_weight[:, np.newaxis] * diff
-                cov = weighted_diff.T @ diff
-                cov += _EPS * np.eye(cov.shape[0])  # Numerical jitter if near-singular
-
-                self._mean = mu
-                self._covariance = cov
-                self._validate()
-                self._cache()
+        suf_stat = self.get_sufficient_stat(x)  # shape (n, d + d^2)
+        dual = np.average(suf_stat, axis=0, weights=sample_weight)  # length d + d^2
+        self.dual_param = dual
         return self
 
     def __repr__(self):

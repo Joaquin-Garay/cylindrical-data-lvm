@@ -131,14 +131,14 @@ class IndCylindrical(AbstractCylindrical, ExponentialFamily):
     def fit(self,
             x: Array,
             sample_weight: Optional[Array] = None,
-            case: str = "bregman",
+            case: str | None = None,
             ) -> "IndCylindrical":
 
         self._validate_case(case)
         x, sample_weight = self._input_process(x, sample_weight)
         x_gauss, x_vmf = self._split_input(x)
-        self._gaussian.fit(x_gauss, sample_weight=sample_weight, case=case)
-        self._vmf.fit(x_vmf, sample_weight=sample_weight, case=case)
+        self._gaussian.fit(x_gauss, sample_weight=sample_weight)
+        self._vmf.fit(x_vmf, sample_weight=sample_weight)
         self._validate_components()
 
         return self
@@ -150,4 +150,3 @@ class IndCylindrical(AbstractCylindrical, ExponentialFamily):
     @property
     def vmf(self) -> VonMisesFisher:
         return self._vmf
-
