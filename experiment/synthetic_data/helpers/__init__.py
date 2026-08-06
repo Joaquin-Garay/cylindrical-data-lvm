@@ -9,6 +9,7 @@ from .builders import (
     train_all_models,
     predict_model,
     ari_model,
+    ari_full_model,
     score_model,
 )
 from .common import (
@@ -29,6 +30,7 @@ from .plots import (
     plot_cross_corr_matrices,
     plot_cylmix_comparison_metrics,
     plot_cylindrical_sample_2d,
+    plot_cylindrical_sample_3d,
     plot_mixing_weights_model_vs_generator,
     plot_model_vs_generator,
 )
@@ -43,12 +45,14 @@ __all__ = [
     "mom_iso_builder",
     "predict_model",
     "ari_model",
+    "ari_full_model",
     "score_model",
     "plot_components",
     "plot_cross_corr_comparison",
     "plot_cross_corr_matrices",
     "plot_cylmix_comparison_metrics",
     "plot_cylindrical_sample_2d",
+    "plot_cylindrical_sample_3d",
     "plot_mixing_weights_model_vs_generator",
     "plot_model_vs_generator",
     "sample_noisy_train_test",

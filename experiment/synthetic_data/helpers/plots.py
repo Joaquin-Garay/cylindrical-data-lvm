@@ -684,6 +684,192 @@ def plot_cylindrical_sample_2d(
     return fig, ax
 
 
+def _validate_axis_labels(labels, *, name, size):
+    labels = tuple(labels)
+    if len(labels) != size:
+        raise ValueError(f"{name} must contain exactly {size} labels.")
+    return tuple(str(label) for label in labels)
+
+
+def _sample_rows(x, labels, *, max_points, random_state):
+    n_obs = x.shape[0]
+    if max_points is None:
+        return x, labels
+
+    if not isinstance(max_points, (int, np.integer)) or int(max_points) < 1:
+        raise ValueError("max_points must be an integer >= 1.")
+    max_points = int(max_points)
+    if n_obs <= max_points:
+        return x, labels
+
+    if isinstance(random_state, np.random.RandomState):
+        rng = random_state
+    else:
+        rng = np.random.RandomState(random_state)
+    idx = np.sort(rng.choice(n_obs, size=max_points, replace=False))
+    x = x[idx]
+    if labels is not None:
+        labels = labels[idx]
+    return x, labels
+
+
+def _make_sample_3d_circle_axes(*, figsize, axes):
+    if axes is None:
+        fig = plt.figure(figsize=figsize, constrained_layout=True)
+        ax_space = fig.add_subplot(1, 2, 1, projection="3d")
+        ax_circle = fig.add_subplot(1, 2, 2)
+        return fig, ax_space, ax_circle
+
+    axes_arr = np.asarray(axes, dtype=object).ravel()
+    if axes_arr.size != 2:
+        raise ValueError("axes must contain exactly two axes.")
+    ax_space, ax_circle = axes_arr
+    fig = ax_space.figure
+    if ax_circle.figure is not fig:
+        raise ValueError("Both axes must belong to the same figure.")
+    return fig, ax_space, ax_circle
+
+
+def _draw_unit_circle(ax, *, labels):
+    theta = np.linspace(0.0, 2.0 * np.pi, 361)
+    ax.plot(np.cos(theta), np.sin(theta), color="0.45", linewidth=1.0)
+    ax.axhline(0.0, color="0.85", linewidth=0.8)
+    ax.axvline(0.0, color="0.85", linewidth=0.8)
+    ax.set_xlabel(labels[0])
+    ax.set_ylabel(labels[1])
+    ax.set_xlim(-1.18, 1.18)
+    ax.set_ylim(-1.18, 1.18)
+    ax.set_aspect("equal", adjustable="box")
+    ax.grid(True, alpha=0.2)
+
+
+def plot_cylindrical_sample_3d(
+    x,
+    *,
+    labels=None,
+    figsize=(11.0, 5.0),
+    point_size=16,
+    point_alpha=0.62,
+    max_points=None,
+    random_state=42,
+    normalize_directions=True,
+    linear_feature_names=("x", "y", "z"),
+    direction_feature_names=("cos(theta)", "sin(theta)"),
+    legend=True,
+    axes=None,
+    title="3D cylindrical sample",
+):
+    """
+    Plot a 3D cylindrical sample as Euclidean points plus unit-circle points.
+
+    Expects ``x`` with shape ``(N, 5)``. The first three columns are plotted in
+    3D Euclidean space. The last two columns are plotted on the unit circle.
+    """
+    x = np.asarray(x, dtype=float)
+    if x.ndim != 2 or x.shape[1] != 5:
+        raise ValueError("x must have shape (N, 5).")
+    if not np.all(np.isfinite(x)):
+        raise ValueError("x contains non-finite values.")
+
+    n_obs = x.shape[0]
+    if labels is not None:
+        labels = np.asarray(labels)
+        if labels.ndim != 1 or labels.shape[0] != n_obs:
+            raise ValueError("labels must have shape (N,).")
+
+    x, labels = _sample_rows(
+        x,
+        labels,
+        max_points=max_points,
+        random_state=random_state,
+    )
+
+    x_gauss = x[:, :3]
+    directions = x[:, 3:]
+    if normalize_directions:
+        directions = unit(directions)
+
+    linear_feature_names = _validate_axis_labels(
+        linear_feature_names,
+        name="linear_feature_names",
+        size=3,
+    )
+    direction_feature_names = _validate_axis_labels(
+        direction_feature_names,
+        name="direction_feature_names",
+        size=2,
+    )
+
+    fig, ax_space, ax_circle = _make_sample_3d_circle_axes(
+        figsize=figsize,
+        axes=axes,
+    )
+    _draw_unit_circle(ax_circle, labels=direction_feature_names)
+
+    cmap = plt.cm.tab10
+    if labels is None:
+        color = cmap(0)
+        ax_space.scatter(
+            x_gauss[:, 0],
+            x_gauss[:, 1],
+            x_gauss[:, 2],
+            s=point_size,
+            alpha=point_alpha,
+            color=color,
+            linewidths=0.0,
+        )
+        ax_circle.scatter(
+            directions[:, 0],
+            directions[:, 1],
+            s=point_size,
+            alpha=point_alpha,
+            color=color,
+            linewidths=0.0,
+            zorder=3,
+        )
+    else:
+        unique_labels = np.unique(labels)
+        for i, value in enumerate(unique_labels):
+            mask = labels == value
+            color = cmap(i % 10)
+            label = str(value)
+            ax_space.scatter(
+                x_gauss[mask, 0],
+                x_gauss[mask, 1],
+                x_gauss[mask, 2],
+                s=point_size,
+                alpha=point_alpha,
+                color=color,
+                linewidths=0.0,
+                label=label,
+            )
+            ax_circle.scatter(
+                directions[mask, 0],
+                directions[mask, 1],
+                s=point_size,
+                alpha=point_alpha,
+                color=color,
+                linewidths=0.0,
+                label=label,
+                zorder=3,
+            )
+
+        if legend:
+            ax_circle.legend(title="label", frameon=False, loc="upper right")
+
+    ax_space.set_xlabel(linear_feature_names[0])
+    ax_space.set_ylabel(linear_feature_names[1])
+    ax_space.set_zlabel(linear_feature_names[2])
+    ax_space.set_title("3D Euclidean points")
+    _set_axes_equal_3d(ax_space)
+
+    ax_circle.set_title("Circular points")
+    if title is not None:
+        fig.suptitle(str(title))
+
+    return fig, np.asarray([ax_space, ax_circle], dtype=object)
+
+
 def plot_mixing_weights_model_vs_generator(
     model,
     generator,
