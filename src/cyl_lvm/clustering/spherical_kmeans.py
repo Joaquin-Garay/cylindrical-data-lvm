@@ -10,6 +10,7 @@ from ..core.types import Array, ArrayLike
 
 
 RandomStateLike = Optional[Union[int, np.random.RandomState]]
+_RESULTANT_NORM_EPS = 1e-12
 
 
 def _resolve_rng(rng: RandomStateLike) -> np.random.RandomState:
@@ -90,39 +91,36 @@ class SphericalKMeans:
         sims: Array,
     ) -> tuple[Array, bool]:
         centers = np.zeros((self.n_clusters, x.shape[1]), dtype=float)
-        had_empty_reseed = False
-        # Re-seed empty clusters with least well represented points.
-        farthest_order = np.argsort(np.max(sims, axis=1))
-        farthest_ptr = 0
-        used_fallback_idx: set[int] = set()
+        counts = np.bincount(labels, minlength=self.n_clusters)
+        np.add.at(centers, labels, x)
 
         for k in range(self.n_clusters):
-            mask = labels == k
-            if not np.any(mask):
-                had_empty_reseed = True
-                while (
-                    farthest_ptr < x.shape[0]
-                    and int(farthest_order[farthest_ptr]) in used_fallback_idx
-                ):
-                    farthest_ptr += 1
-                if farthest_ptr < x.shape[0]:
-                    idx = int(farthest_order[farthest_ptr])
-                    farthest_ptr += 1
-                else:
-                    idx = int(self._rng.choice(x.shape[0]))
-                centers[k] = x[idx]
-                used_fallback_idx.add(idx)
+            if counts[k] == 0:
                 continue
 
-            mean_dir = x[mask].sum(axis=0)
-            norm = float(np.linalg.norm(mean_dir))
-            if norm <= 0.0:
-                idx = int(self._rng.choice(x.shape[0]))
-                centers[k] = x[idx]
+            norm = float(np.linalg.norm(centers[k]))
+            if norm > _RESULTANT_NORM_EPS:
+                centers[k] /= norm
             else:
-                centers[k] = mean_dir / norm
+                counts[k] = 0
 
-        return centers, had_empty_reseed
+        reinit_clusters = np.flatnonzero(counts == 0)
+        if reinit_clusters.size:
+            # Re-seed empty or numerically cancelled clusters with the least
+            # well represented observations. This is the pseudocode's
+            # "Reinitialize centroid j" branch.
+            best_sim = np.max(sims, axis=1)
+            n_reinit = int(reinit_clusters.size)
+            if n_reinit >= x.shape[0]:
+                fallback_order = np.argsort(best_sim)
+            else:
+                fallback_order = np.argpartition(best_sim, n_reinit - 1)[:n_reinit]
+                fallback_order = fallback_order[np.argsort(best_sim[fallback_order])]
+
+            for k, idx in zip(reinit_clusters, fallback_order, strict=True):
+                centers[int(k)] = x[int(idx)]
+
+        return centers, bool(reinit_clusters.size)
 
     def fit(self, x: ArrayLike) -> "SphericalKMeans":
         x_unit = _validate_input(x, n_clusters=self.n_clusters)
@@ -177,6 +175,11 @@ class SphericalKMeans:
         if self.cluster_centers_ is None:
             raise RuntimeError("The model is not fitted yet. Call fit(...) first.")
         x_unit = _validate_input(x, n_clusters=1)
+        if x_unit.shape[1] != self.cluster_centers_.shape[1]:
+            raise ValueError(
+                "x feature mismatch with fitted centers: "
+                f"expected {self.cluster_centers_.shape[1]}, got {x_unit.shape[1]}."
+            )
         sims = x_unit @ self.cluster_centers_.T
         return np.argmax(sims, axis=1)
 

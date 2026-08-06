@@ -10,6 +10,7 @@ from ..core.types import Array, ArrayLike
 
 RandomStateLike = Optional[Union[int, np.random.RandomState]]
 _RESULTANT_DENOM_EPS = 1e-6
+_RESULTANT_NORM_EPS = 1e-12
 
 
 def _resolve_rng(rng: RandomStateLike) -> np.random.RandomState:
@@ -66,9 +67,9 @@ class CylindricalKMeans:
 
     Assignment objective:
         (1/2d1) * (x1 - mu1_k)^T Sigma_1^{-1} (x1 - mu1_k)
-        + lambda_ * (1 - x2^T mu2_k) / (1 - A_m^2)
+        + lambda_ * (1 - x2^T mu2_k) / max(1 - R^2, epsilon_r)
     where x2 and mu2_k are unit vectors.
-    Sigma_1 and A_m are estimated once from the full dataset per fit call.
+    Sigma_1 and R are estimated once from the full dataset per fit call.
     d1 is the Euclidean block dimension.
     """
 
@@ -77,6 +78,7 @@ class CylindricalKMeans:
             n_clusters: int,
             *,
             lambda_: float = 1.0,
+            epsilon_r: float = _RESULTANT_DENOM_EPS,
             max_iter: int = 100,
             tol: float = 1e-6,
             n_init: int = 10,
@@ -84,8 +86,10 @@ class CylindricalKMeans:
     ) -> None:
         if not isinstance(n_clusters, (int, np.integer)) or int(n_clusters) < 1:
             raise ValueError("n_clusters must be an integer >= 1.")
-        if not np.isfinite(lambda_) or float(lambda_) < 0.0:
-            raise ValueError("lambda_ must be a finite nonnegative float.")
+        if not np.isfinite(lambda_) or float(lambda_) <= 0.0:
+            raise ValueError("lambda_ must be a finite positive float.")
+        if not np.isfinite(epsilon_r) or float(epsilon_r) <= 0.0:
+            raise ValueError("epsilon_r must be a finite positive float.")
         if not isinstance(max_iter, (int, np.integer)) or int(max_iter) < 1:
             raise ValueError("max_iter must be an integer >= 1.")
         if not isinstance(n_init, (int, np.integer)) or int(n_init) < 1:
@@ -95,6 +99,7 @@ class CylindricalKMeans:
 
         self.n_clusters = int(n_clusters)
         self.lambda_ = float(lambda_)
+        self.epsilon_r = float(epsilon_r)
         self.max_iter = int(max_iter)
         self.tol = float(tol)
         self.n_init = int(n_init)
@@ -124,7 +129,8 @@ class CylindricalKMeans:
     def _mean_resultant_length(x2: Array) -> float:
         if x2.shape[0] == 0:
             return 0.0
-        return min(float(np.linalg.norm(np.mean(x2, axis=0), ord=2)), 1.0 - 1e-6)
+        r_hat = np.linalg.norm(np.sum(x2, axis=0), ord=2) / float(x2.shape[0])
+        return float(np.clip(r_hat, 0.0, 1.0))
 
     @staticmethod
     def _euclidean_mahalanobis(
@@ -139,9 +145,10 @@ class CylindricalKMeans:
     def _directional_mahalanobis(
             inner_product: Array,
             resultant_length: float,
+            epsilon_r: float,
     ) -> Array:
         cos_sim = np.clip(inner_product, -1.0, 1.0)
-        denom = max(1.0 - resultant_length * resultant_length, _RESULTANT_DENOM_EPS)
+        denom = max(1.0 - resultant_length * resultant_length, epsilon_r)
         return (1.0 - cos_sim) / denom
 
     def _init_centers(
@@ -164,7 +171,11 @@ class CylindricalKMeans:
     ) -> tuple[Array, Array]:
         diff = x1[:, None, :] - mu1[None, :, :]
         linear_term = self._euclidean_mahalanobis(diff, sigma1_inv, scale=linear_scale)
-        dir_term = self._directional_mahalanobis(x2 @ mu2.T, resultant_length)
+        dir_term = self._directional_mahalanobis(
+            x2 @ mu2.T,
+            resultant_length,
+            self.epsilon_r,
+        )
         loss = linear_term + self.lambda_ * dir_term
         labels = np.argmin(loss, axis=1)
         point_loss = loss[np.arange(x1.shape[0]), labels]
@@ -179,32 +190,38 @@ class CylindricalKMeans:
     ) -> tuple[Array, Array, bool]:
         mu1 = np.zeros((self.n_clusters, x1.shape[1]), dtype=float)
         mu2 = np.zeros((self.n_clusters, x2.shape[1]), dtype=float)
-        had_empty_reseed = False
-
-        # Re-seed empty clusters with the worst represented observations.
-        farthest_order = np.argsort(-point_loss)
-        farthest_ptr = 0
+        counts = np.bincount(labels, minlength=self.n_clusters)
+        np.add.at(mu1, labels, x1)
+        np.add.at(mu2, labels, x2)
 
         for k in range(self.n_clusters):
-            mask = labels == k
-            if not np.any(mask):
-                had_empty_reseed = True
-                idx = int(farthest_order[farthest_ptr])
-                farthest_ptr += 1
-                mu1[k] = x1[idx]
-                mu2[k] = x2[idx]
+            if counts[k] == 0:
                 continue
 
-            mu1[k] = np.mean(x1[mask], axis=0)
-            resultant = np.sum(x2[mask], axis=0)
-            norm = float(np.linalg.norm(resultant))
-            if norm <= 0.0:
-                idx = int(self._rng.choice(x1.shape[0]))
-                mu2[k] = x2[idx]
+            norm = float(np.linalg.norm(mu2[k]))
+            if norm > _RESULTANT_NORM_EPS:
+                mu1[k] /= float(counts[k])
+                mu2[k] /= norm
             else:
-                mu2[k] = resultant / norm
+                counts[k] = 0
 
-        return mu1, mu2, had_empty_reseed
+        reinit_clusters = np.flatnonzero(counts == 0)
+        if reinit_clusters.size:
+            # Re-seed empty or numerically cancelled clusters with the worst
+            # represented observations. This is the pseudocode's
+            # "Reinitialize centroid j" branch for the full cylindrical center.
+            n_reinit = int(reinit_clusters.size)
+            if n_reinit >= x1.shape[0]:
+                fallback_order = np.argsort(-point_loss)
+            else:
+                fallback_order = np.argpartition(point_loss, -n_reinit)[-n_reinit:]
+                fallback_order = fallback_order[np.argsort(-point_loss[fallback_order])]
+
+            for k, idx in zip(reinit_clusters, fallback_order, strict=True):
+                mu1[int(k)] = x1[int(idx)]
+                mu2[int(k)] = x2[int(idx)]
+
+        return mu1, mu2, bool(reinit_clusters.size)
 
     def fit(self, x_euclid: ArrayLike, x_spherical: ArrayLike) -> "CylindricalKMeans":
         x1, x2 = _validate_inputs(
@@ -254,6 +271,7 @@ class CylindricalKMeans:
                 directional_shift = self._directional_mahalanobis(
                     np.sum(mu2 * new_mu2, axis=1),
                     resultant_length,
+                    self.epsilon_r,
                 )
 
                 shift = float(np.max(linear_shift + self.lambda_ * directional_shift))
@@ -347,6 +365,7 @@ def cylindrical_kmeans(
         n_clusters: int,
         *,
         lambda_: float = 1.0,
+        epsilon_r: float = _RESULTANT_DENOM_EPS,
         max_iter: int = 100,
         tol: float = 1e-6,
         n_init: int = 10,
@@ -369,6 +388,7 @@ def cylindrical_kmeans(
     model = CylindricalKMeans(
         n_clusters=n_clusters,
         lambda_=lambda_,
+        epsilon_r=epsilon_r,
         max_iter=max_iter,
         tol=tol,
         n_init=n_init,
